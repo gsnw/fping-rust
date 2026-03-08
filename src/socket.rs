@@ -9,7 +9,13 @@ use crate::constants::{
   ICMP6_ECHO_REPLY, ICMP6_ECHO_REQUEST, ICMP_ECHO_REPLY, ICMP_ECHO_REQUEST, ICMP_HEADER_LEN,
 };
 
-pub fn open_raw_socket(is_ipv6: bool) -> Result<RawFd, String> {
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum SocketKind {
+    Raw,
+    Dgram,
+}
+
+pub fn open_raw_socket(is_ipv6: bool) -> Result<(RawFd, SocketKind), String> {
   let (domain, proto) = if is_ipv6 {
     (AF_INET6, IPPROTO_ICMPV6)
   } else {
@@ -19,13 +25,13 @@ pub fn open_raw_socket(is_ipv6: bool) -> Result<RawFd, String> {
   let fd = unsafe { libc::socket(domain, SOCK_RAW, proto) };
   if fd >= 0 {
     set_nonblocking(fd);
-    return Ok(fd);
+    return Ok((fd, SocketKind::Raw));
   }
 
   let fd = unsafe { libc::socket(domain, SOCK_DGRAM, proto) };
   if fd >= 0 {
     set_nonblocking(fd);
-    return Ok(fd);
+    return Ok((fd, SocketKind::Dgram));
   }
 
   Err(format!(
@@ -126,7 +132,7 @@ pub struct ReceivedPing {
   pub raw_len: usize,
 }
 
-pub fn recv_ping(fd: RawFd, buf: &mut [u8], is_ipv6: bool) -> Option<ReceivedPing> {
+pub fn recv_ping(fd: RawFd, buf: &mut [u8], is_ipv6: bool, kind: SocketKind) -> Option<ReceivedPing> {
   let n = unsafe {
     let mut src: libc::sockaddr_storage = std::mem::zeroed();
     let mut src_len = std::mem::size_of::<libc::sockaddr_storage>() as socklen_t;
@@ -147,11 +153,11 @@ pub fn recv_ping(fd: RawFd, buf: &mut [u8], is_ipv6: bool) -> Option<ReceivedPin
   let raw_len = n as usize;
   let data = &buf[..raw_len];
 
-  let icmp = if is_ipv6 {
+  let icmp = if is_ipv6 || kind == SocketKind::Dgram {
     if data.len() < 8 { return None; }
     data
   } else {
-    if data.len() < 28 { return None; }
+    if data.len() < 20 + 8 { return None; }
     let ihl = ((data[0] & 0x0F) as usize) * 4;
     if data.len() < ihl + 8 { return None; }
     &data[ihl..]

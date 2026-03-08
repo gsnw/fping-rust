@@ -8,7 +8,7 @@ use crate::output::{
   print_global_stats, print_per_host_stats, print_recv, print_timeout,
   max_host_len, GlobalStatsSummary, RecvLineOpts, TimeoutLineOpts,
 };
-use crate::socket::{build_icmp_packet, open_raw_socket, recv_ping, send_ping_v4, send_ping_v6};
+use crate::socket::{build_icmp_packet, open_raw_socket, recv_ping, send_ping_v4, send_ping_v6, SocketKind};
 use crate::types::{HostEntry, PendingPing};
 
 pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
@@ -30,22 +30,24 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
   let has_v4 = hosts.iter().any(|h| !h.is_ipv6);
   let has_v6 = hosts.iter().any(|h| h.is_ipv6);
 
-  let fd4 = if has_v4 {
-    Some(open_raw_socket(false).unwrap_or_else(|e| {
+  let (fd4, kind4) = if has_v4 {
+    let (fd, kind) = open_raw_socket(false).unwrap_or_else(|e| {
       eprintln!("fping: {}", e);
       std::process::exit(3);
-    }))
+    });
+    (Some(fd), kind)
   } else {
-    None
+    (None, SocketKind::Raw)
   };
 
-  let fd6 = if has_v6 {
-    Some(open_raw_socket(true).unwrap_or_else(|e| {
+  let (fd6, kind6) = if has_v6 {
+    let (fd, kind) = open_raw_socket(true).unwrap_or_else(|e| {
       eprintln!("fping: {}", e);
       std::process::exit(3);
-    }))
+    });
+    (Some(fd), kind)
   } else {
-    None
+    (None, SocketKind::Raw)
   };
 
   // ICMP-ID = PID
@@ -111,13 +113,18 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
         if count.map(|c| hosts[idx].current_ping_index >= c).unwrap_or(false) {
           hosts[idx].next_send = now + Duration::from_secs(86400);
         }
+
+        let is_default_mode = count.is_none() && !loop_mode;
+        if is_default_mode && hosts[idx].current_ping_index > args.retry {
+          hosts[idx].next_send = now + Duration::from_secs(86400);
+        }
       }
     }
 
-    for (fd_opt, is_v6) in &[(fd4, false), (fd6, true)] {
+    for (fd_opt, is_v6, kind) in &[(fd4, false, kind4), (fd6, true, kind6)] {
       let fd = match fd_opt { Some(f) => *f, None => continue };
       loop {
-        let received = match recv_ping(fd, &mut recv_buf, *is_v6) {
+        let received = match recv_ping(fd, &mut recv_buf, *is_v6, *kind) {
           Some(r) => r,
           None => break,
         };
@@ -130,8 +137,12 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
           let first_reply = hosts[hi].num_recv == 0;
           hosts[hi].record_reply(rtt, pending.ping_index);
 
+          let is_default_mode = count.is_none() && !loop_mode;
+          if is_default_mode && first_reply {
+            hosts[hi].done = true;
+          }
+
           if !args.quiet && !args.unreach {
-            let is_default_mode = count.is_none() && !loop_mode;
             if is_default_mode {
               if first_reply {
                 print_alive(&hosts[hi], args.timestamp, args.json);
@@ -162,7 +173,8 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
 
     for seq in timed_out {
       if let Some(pending) = seqmap.remove(&seq) {
-        if !args.quiet && !args.alive {
+        let is_default_mode = count.is_none() && !loop_mode;
+        if !is_default_mode && !args.quiet && !args.alive {
           print_timeout(TimeoutLineOpts {
             host: &hosts[pending.host_index],
             ping_index: pending.ping_index,
