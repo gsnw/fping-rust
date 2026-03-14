@@ -19,7 +19,8 @@ pub fn resolve(name: &str, only_ipv4: bool, only_ipv6: bool) -> Option<IpAddr> {
 
   if only_ipv6 {
     addrs.iter().find(|a| a.is_ipv6()).copied()
-      .or_else(|| addrs.first().copied())
+  } else if only_ipv4 {
+    addrs.iter().find(|a| a.is_ipv4()).copied() 
   } else {
     addrs.iter().find(|a| a.is_ipv4()).copied()
       .or_else(|| addrs.first().copied())
