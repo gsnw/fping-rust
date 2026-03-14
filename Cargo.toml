@@ -3,6 +3,10 @@ name = "fping-rust"
 version = "5.5.0"
 edition = "2024"
 
+[lib]
+name = "fping"
+path = "src/lib.rs"
+
 [[bin]]
 name = "fping"
 path = "src/main.rs"
