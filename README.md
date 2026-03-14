@@ -12,3 +12,39 @@ established itself since then as a standard tool.
 ```
 cargo build
 ```
+
+## Test
+
+### Run all tests
+
+```
+cargo test
+```
+
+### Run special test
+
+```
+cargo test --test args_tests
+cargo test --test dns_tests
+cargo test --test output_tests
+cargo test --test socket_tests
+cargo test --test types_tests
+```
+
+### Run specific test by name
+
+```
+cargo test --test types_tests loss_pct_50
+```
+
+### Overview of the test files
+
+| File | Description | root required |
+| ---- | ----------- | ------------- |
+| args_tests.rs | CLI argument parsing, default values | No |
+| dns_tests.rs | Hostname resolution, IP filtering | No* |
+| output_tests.rs | `sprint_tm`, `max_host_len` | No |
+| socket_tests.rs | Packet construction, checksum, ID/Seq encoding | No |
+| types_tests.rs | `HostEntry` logic, statistics | No |
+
+&#42; Network access is required for DNS resolution (localhost is always available).
