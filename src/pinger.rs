@@ -30,28 +30,28 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
   let has_v4 = hosts.iter().any(|h| !h.is_ipv6);
   let has_v6 = hosts.iter().any(|h| h.is_ipv6);
 
-  let (fd4, kind4) = if has_v4 {
-    let (fd, kind) = open_raw_socket(false).unwrap_or_else(|e| {
+  let (fd4, kind4, dgram_id4) = if has_v4 {
+    let (fd, kind, kid) = open_raw_socket(false).unwrap_or_else(|e| {
       eprintln!("fping: {}", e);
       std::process::exit(3);
     });
-    (Some(fd), kind)
+    (Some(fd), kind, kid)
   } else {
-    (None, SocketKind::Raw)
+    (None, SocketKind::Raw, None)
   };
 
-  let (fd6, kind6) = if has_v6 {
-    let (fd, kind) = open_raw_socket(true).unwrap_or_else(|e| {
+  let (fd6, kind6, dgram_id6) = if has_v6 {
+    let (fd, kind, kid) = open_raw_socket(true).unwrap_or_else(|e| {
       eprintln!("fping: {}", e);
       std::process::exit(3);
     });
-    (Some(fd), kind)
+    (Some(fd), kind, kid)
   } else {
-    (None, SocketKind::Raw)
+    (None, SocketKind::Raw, None)
   };
 
-  // ICMP-ID = PID
-  let my_id = (std::process::id() & 0xFFFF) as u16;
+  let pid_id = (std::process::id() & 0xFFFF) as u16;
+  let my_id = dgram_id4.or(dgram_id6).unwrap_or(pid_id);
 
   let interval = Duration::from_millis(args.interval);
   let period   = Duration::from_millis(args.period);
@@ -88,7 +88,8 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
       seq_counter = seq_counter.wrapping_add(1);
 
       let is_ipv6  = hosts[idx].is_ipv6;
-      let pkt = build_icmp_packet(my_id, seq, args.size, is_ipv6);
+      let kind = if is_ipv6 { kind6 } else { kind4 };
+      let pkt = build_icmp_packet(my_id, seq, args.size, is_ipv6, kind);
 
       let sent = match hosts[idx].addr {
         IpAddr::V4(ref a) => fd4.map(|fd| send_ping_v4(fd, a, &pkt)).unwrap_or(false),
