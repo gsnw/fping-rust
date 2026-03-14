@@ -132,7 +132,7 @@ fn icmp_checksum(data: &[u8]) -> u16 {
 pub fn send_ping_v4(fd: RawFd, addr: &Ipv4Addr, pkt: &[u8]) -> bool {
   unsafe {
     let mut sa: libc::sockaddr_in = std::mem::zeroed();
-    sa.sin_family = AF_INET as u16;
+    sa.sin_family = AF_INET as libc::sa_family_t;
     sa.sin_addr.s_addr = u32::from_ne_bytes(addr.octets()).to_be();
 
     let n = sendto(
@@ -150,7 +150,7 @@ pub fn send_ping_v4(fd: RawFd, addr: &Ipv4Addr, pkt: &[u8]) -> bool {
 pub fn send_ping_v6(fd: RawFd, addr: &Ipv6Addr, pkt: &[u8]) -> bool {
   unsafe {
     let mut sa: libc::sockaddr_in6 = std::mem::zeroed();
-    sa.sin6_family = AF_INET6 as u16;
+    sa.sin6_family = AF_INET6 as libc::sa_family_t;
     sa.sin6_addr.s6_addr = addr.octets();
 
     let n = sendto(
