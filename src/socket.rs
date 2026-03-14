@@ -11,11 +11,11 @@ use crate::constants::{
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum SocketKind {
-    Raw,
-    Dgram,
+  Raw,
+  Dgram,
 }
 
-pub fn open_raw_socket(is_ipv6: bool) -> Result<(RawFd, SocketKind), String> {
+pub fn open_raw_socket(is_ipv6: bool) -> Result<(RawFd, SocketKind, Option<u16>), String> {
   let (domain, proto) = if is_ipv6 {
     (AF_INET6, IPPROTO_ICMPV6)
   } else {
@@ -25,19 +25,59 @@ pub fn open_raw_socket(is_ipv6: bool) -> Result<(RawFd, SocketKind), String> {
   let fd = unsafe { libc::socket(domain, SOCK_RAW, proto) };
   if fd >= 0 {
     set_nonblocking(fd);
-    return Ok((fd, SocketKind::Raw));
+    return Ok((fd, SocketKind::Raw, None));
   }
 
   let fd = unsafe { libc::socket(domain, SOCK_DGRAM, proto) };
   if fd >= 0 {
     set_nonblocking(fd);
-    return Ok((fd, SocketKind::Dgram));
+    let assigned_id = dgram_bind_and_get_id(fd, is_ipv6);
+    return Ok((fd, SocketKind::Dgram, assigned_id));
   }
 
   Err(format!(
-    "Unable to open ICMP{}-socket. Run as root or with CAP_NET_RAW.",
+    "Unable to open ICMP{} socket (no root and SOCK_DGRAM denied).\n\
+    Fix with one of:\n\
+    \x20 sudo setcap cap_net_raw+ep ./fping\n\
+    \x20 sudo sysctl -w net.ipv4.ping_group_range=\"0 2147483647\"",
     if is_ipv6 { "v6" } else { "" }
   ))
+}
+
+fn dgram_bind_and_get_id(fd: RawFd, is_ipv6: bool) -> Option<u16> {
+  unsafe {
+    if is_ipv6 {
+      let mut sa: libc::sockaddr_in6 = std::mem::zeroed();
+      sa.sin6_family = AF_INET6 as libc::sa_family_t;
+      let r = libc::bind(
+        fd,
+        &sa as *const _ as *const libc::sockaddr,
+        std::mem::size_of::<libc::sockaddr_in6>() as socklen_t,
+      );
+      if r < 0 { return None; }
+
+      let mut sa2: libc::sockaddr_in6 = std::mem::zeroed();
+      let mut len = std::mem::size_of::<libc::sockaddr_in6>() as socklen_t;
+      let r = libc::getsockname(fd, &mut sa2 as *mut _ as *mut libc::sockaddr, &mut len);
+      if r < 0 || sa2.sin6_port == 0 { return None; }
+      Some(u16::from_be(sa2.sin6_port))
+    } else {
+      let mut sa: libc::sockaddr_in = std::mem::zeroed();
+      sa.sin_family = AF_INET as libc::sa_family_t;
+      let r = libc::bind(
+        fd,
+        &sa as *const _ as *const libc::sockaddr,
+        std::mem::size_of::<libc::sockaddr_in>() as socklen_t,
+      );
+      if r < 0 { return None; }
+
+      let mut sa2: libc::sockaddr_in = std::mem::zeroed();
+      let mut len = std::mem::size_of::<libc::sockaddr_in>() as socklen_t;
+      let r = libc::getsockname(fd, &mut sa2 as *mut _ as *mut libc::sockaddr, &mut len);
+      if r < 0 || sa2.sin_port == 0 { return None; }
+      Some(u16::from_be(sa2.sin_port))
+    }
+  }
 }
 
 fn set_nonblocking(fd: RawFd) {
@@ -47,7 +87,7 @@ fn set_nonblocking(fd: RawFd) {
   }
 }
 
-pub fn build_icmp_packet(id: u16, seq: u16, data_size: usize, is_ipv6: bool) -> Vec<u8> {
+pub fn build_icmp_packet(id: u16, seq: u16, data_size: usize, is_ipv6: bool, kind: SocketKind) -> Vec<u8> {
   let total = ICMP_HEADER_LEN + data_size;
   let mut pkt = vec![0u8; total];
 
@@ -133,9 +173,10 @@ pub struct ReceivedPing {
 }
 
 pub fn recv_ping(fd: RawFd, buf: &mut [u8], is_ipv6: bool, kind: SocketKind) -> Option<ReceivedPing> {
+  let mut src: libc::sockaddr_storage = unsafe { std::mem::zeroed() };
+  let mut src_len = std::mem::size_of::<libc::sockaddr_storage>() as socklen_t;
+
   let n = unsafe {
-    let mut src: libc::sockaddr_storage = std::mem::zeroed();
-    let mut src_len = std::mem::size_of::<libc::sockaddr_storage>() as socklen_t;
     recvfrom(
       fd,
       buf.as_mut_ptr() as *mut c_void,
@@ -153,14 +194,14 @@ pub fn recv_ping(fd: RawFd, buf: &mut [u8], is_ipv6: bool, kind: SocketKind) -> 
   let raw_len = n as usize;
   let data = &buf[..raw_len];
 
-  let icmp = if is_ipv6 || kind == SocketKind::Dgram {
-    if data.len() < 8 { return None; }
-    data
-  } else {
+  let icmp = if !is_ipv6 && kind == SocketKind::Raw {
     if data.len() < 20 + 8 { return None; }
     let ihl = ((data[0] & 0x0F) as usize) * 4;
     if data.len() < ihl + 8 { return None; }
     &data[ihl..]
+  } else {
+    if data.len() < 8 { return None; }
+    data
   };
 
   let icmp_type = icmp[0];
@@ -169,8 +210,10 @@ pub fn recv_ping(fd: RawFd, buf: &mut [u8], is_ipv6: bool, kind: SocketKind) -> 
     return None;
   }
 
+  let id = u16::from_be_bytes([icmp[4], icmp[5]]);
+
   Some(ReceivedPing {
-    id:  u16::from_be_bytes([icmp[4], icmp[5]]),
+    id,
     seq: u16::from_be_bytes([icmp[6], icmp[7]]),
     is_ipv6,
     raw_len,
