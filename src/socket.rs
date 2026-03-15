@@ -87,7 +87,7 @@ fn set_nonblocking(fd: RawFd) {
   }
 }
 
-pub fn build_icmp_packet(id: u16, seq: u16, data_size: usize, is_ipv6: bool, kind: SocketKind) -> Vec<u8> {
+pub fn build_icmp_packet(id: u16, seq: u16, data_size: usize, is_ipv6: bool, _kind: SocketKind) -> Vec<u8> {
   let total = ICMP_HEADER_LEN + data_size;
   let mut pkt = vec![0u8; total];
 
@@ -168,7 +168,6 @@ pub fn send_ping_v6(fd: RawFd, addr: &Ipv6Addr, pkt: &[u8]) -> bool {
 pub struct ReceivedPing {
   pub id: u16,
   pub seq: u16,
-  pub is_ipv6: bool,
   pub raw_len: usize,
 }
 
@@ -215,7 +214,6 @@ pub fn recv_ping(fd: RawFd, buf: &mut [u8], is_ipv6: bool, kind: SocketKind) -> 
   Some(ReceivedPing {
     id,
     seq: u16::from_be_bytes([icmp[6], icmp[7]]),
-    is_ipv6,
     raw_len,
   })
 }

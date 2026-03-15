@@ -46,7 +46,6 @@ fn resolve_localhost_ipv4_only() {
 }
 
 #[test]
-#[test]
 fn resolve_localhost_ipv6_only() {
     let result = resolve("localhost", false, true);
     match result {
