@@ -1,6 +1,6 @@
 /* cargo rust */
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
-pub const PROGRAM: &str = env!("CARGO_PKG_NAME");
+pub const _PROGRAM: &str = env!("CARGO_PKG_NAME");
 
 /* ICMP Typ */
 pub const ICMP_ECHO_REQUEST: u8 = 8;
@@ -10,26 +10,26 @@ pub const ICMP6_ECHO_REPLY: u8 = 129;
 pub const ICMP_HEADER_LEN: usize = 8;
 
 /* Default values */
-pub const DEFAULT_INTERVAL_MS: u64 = 10;
-pub const DEFAULT_PERIOD_MS: u64 = 1000;
-pub const DEFAULT_TIMEOUT_MS: u64 = 500;
-pub const DEFAULT_RETRY: u32 = 3;
-pub const DEFAULT_BACKOFF: f64 = 1.5;
-pub const DEFAULT_PING_DATA_SIZE: usize = 56;
+pub const _DEFAULT_INTERVAL_MS: u64 = 10;
+pub const _DEFAULT_PERIOD_MS: u64 = 1000;
+pub const _DEFAULT_TIMEOUT_MS: u64 = 500;
+pub const _DEFAULT_RETRY: u32 = 3;
+pub const _DEFAULT_BACKOFF: f64 = 1.5;
+pub const _DEFAULT_PING_DATA_SIZE: usize = 56;
 
-pub const MIN_BACKOFF: f64 = 1.0;
-pub const MAX_BACKOFF: f64 = 5.0;
+pub const _MIN_BACKOFF: f64 = 1.0;
+pub const _MAX_BACKOFF: f64 = 5.0;
 
-pub const MAX_GENERATE: usize = 131_072;
-pub const MAX_TARGET_NAME: usize = 255;
+pub const _MAX_GENERATE: usize = 131_072;
+pub const _MAX_TARGET_NAME: usize = 255;
 
 /* Response flags */
-pub const RESP_WAITING: i64 = -1;
-pub const RESP_UNUSED: i64 = -2;
-pub const RESP_TIMEOUT: i64 = -4;
+pub const _RESP_WAITING: i64 = -1;
+pub const _RESP_UNUSED: i64 = -2;
+pub const _RESP_TIMEOUT: i64 = -4;
 
 /* ICMP-Typ-Name */
-pub const ICMP_TYPE_STR: &[&str] = &[
+pub const _ICMP_TYPE_STR: &[&str] = &[
   "ICMP Echo Reply",          // 0
   "",
   "",
@@ -51,7 +51,7 @@ pub const ICMP_TYPE_STR: &[&str] = &[
   "ICMP Mask Reply",          // 18
 ];
 
-pub const ICMP_UNREACH_STR: &[&str] = &[
+pub const _ICMP_UNREACH_STR: &[&str] = &[
   "ICMP Network Unreachable",
   "ICMP Host Unreachable",
   "ICMP Protocol Unreachable",

@@ -3,7 +3,6 @@ use std::time::{Duration, Instant};
 
 #[derive(Debug)]
 pub struct HostEntry {
-  pub name: String,
   pub display: String,
   pub addr: IpAddr,
   pub is_ipv6: bool,
@@ -27,7 +26,6 @@ impl HostEntry {
   pub fn new(name: String, addr: IpAddr, is_ipv6: bool, count: u32) -> Self {
     let display = name.clone();
     HostEntry {
-      name,
       display,
       addr,
       is_ipv6,
@@ -76,14 +74,4 @@ pub struct PendingPing {
   pub host_index: usize,
   pub ping_index: u32,
   pub sent_at: Instant,
-}
-
-#[derive(Default)]
-pub struct GlobalStats {
-  pub num_alive: usize,
-  pub num_unreachable: usize,
-  pub num_pingsent: u32,
-  pub num_pingreceived: u32,
-  pub num_othericmprcvd: u32,
-  pub num_timeout: u32,
 }
