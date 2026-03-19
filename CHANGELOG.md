@@ -1,0 +1,18 @@
+# Changelog
+- Update cargo metadata and github action release
+- Add metadata description and license
+- Add github action codeQL
+- Remove create changelog from release pipline and add a ci script
+- Update github release pipline
+- Resolves a warning regarding unused constants and variables and removes a structure
+- Update to the README
+- Create github action release for crates.io
+- Add GPLv3 license
+- Remove windows-latest from github workflow and limit push only on main
+- Fix macOS mismatched types
+- Create github rust-ci workflow
+- Fix dns resolve fallback if ipv6 not found
+- Unit-Tests created
+- Fix SOCK_DGRAM for unprivileged users
+- Fix default mode without root
+- First version of fping-rust
