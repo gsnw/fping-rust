@@ -3,7 +3,7 @@
 [<img alt="github" src="https://img.shields.io/badge/github-gsnw/fping-rust?style=for-the-badge&logo=github" height="20">](https://github.com/gsnw/fping-rust)
 [![Rust CI](https://github.com/gsnw/fping-rust/actions/workflows/rust-ci.yml/badge.svg)](https://github.com/gsnw/fping-rust/actions/workflows/rust-ci.yml)
 
-fping-rust is an attempt to translate the fping program from https://github.com/schweikert/fping into Rust.
+fping-rust is an attempt to translate the fping program into Rust.
 
 This version is licensed under the GPL
 
@@ -105,3 +105,7 @@ cargo test --test types_tests loss_pct_50
 | types_tests.rs | `HostEntry` logic, statistics | No |
 
 &#42; Network access is required for DNS resolution (localhost is always available).
+
+## Reference
+
+* https://github.com/schweikert/fping

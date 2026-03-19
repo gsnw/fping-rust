@@ -3,6 +3,9 @@ name = "fping-rust"
 version = "5.5.0"
 description = "High-performance ping tool"
 license = "GPL-3.0-or-later"
+categories = ["command-line-utilities"]
+homepage = "https://github.com/gsnw/fping-rust"
+repository = "https://github.com/gsnw/fping-rust"
 edition = "2024"
 
 [lib]
