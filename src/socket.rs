@@ -133,7 +133,7 @@ pub fn send_ping_v4(fd: RawFd, addr: &Ipv4Addr, pkt: &[u8]) -> bool {
   unsafe {
     let mut sa: libc::sockaddr_in = std::mem::zeroed();
     sa.sin_family = AF_INET as libc::sa_family_t;
-    sa.sin_addr.s_addr = u32::from_ne_bytes(addr.octets()).to_be();
+    sa.sin_addr.s_addr = u32::from_ne_bytes(addr.octets());
 
     let n = sendto(
       fd,
