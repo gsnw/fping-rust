@@ -64,7 +64,7 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
 
   // seq -> PendingPing
   let mut seqmap: HashMap<u16, PendingPing> = HashMap::new();
-  let mut seq_counter: u16 = 0;
+  let mut seq_counter: u32 = 0;
   let mut recv_buf = vec![0u8; 4096];
 
   let start = Instant::now();
@@ -84,8 +84,16 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
       }
 
       let ping_idx = hosts[idx].current_ping_index;
-      let seq = seq_counter;
-      seq_counter = seq_counter.wrapping_add(1);
+      let seq: u16 = loop {
+        let candidate = (seq_counter & 0xFFFF) as u16;
+        seq_counter = seq_counter.wrapping_add(1);
+        if !seqmap.contains_key(&candidate) {
+          break candidate;
+        }
+        if (seq_counter & 0xFFFF) as u16 == (seq_counter.wrapping_sub(65536) & 0xFFFF) as u16 {
+          break u16::MAX; // sentinel – seqmap.contains_key will still guard the insert below
+        }
+      };
 
       let is_ipv6  = hosts[idx].is_ipv6;
       let kind = if is_ipv6 { kind6 } else { kind4 };
@@ -96,7 +104,7 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
         IpAddr::V6(ref a) => fd6.map(|fd| send_ping_v6(fd, a, &pkt)).unwrap_or(false),
       };
 
-      if sent {
+      if sent && !seqmap.contains_key(&seq) {
         let sent_at = Instant::now();
         seqmap.insert(seq, PendingPing { host_index: idx, ping_index: ping_idx, sent_at });
         hosts[idx].num_sent  += 1;
@@ -131,6 +139,13 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
         };
 
         if received.id != my_id { continue; }
+
+        if let Some(pending) = seqmap.get(&received.seq) {
+          if Instant::now().duration_since(pending.sent_at) > timeout {
+            seqmap.remove(&received.seq);
+            continue;
+          }
+        }
 
         if let Some(pending) = seqmap.remove(&received.seq) {
           let rtt = Instant::now().duration_since(pending.sent_at);
