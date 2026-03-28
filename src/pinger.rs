@@ -56,8 +56,9 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
   let fd4 = owned_fd4.as_ref().map(|o| o.as_raw_fd());
   let fd6 = owned_fd6.as_ref().map(|o| o.as_raw_fd());
 
-  let pid_id = (std::process::id() & 0xFFFF) as u16;
-  let my_id = dgram_id4.or(dgram_id6).unwrap_or(pid_id);
+  let pid_id  = (std::process::id() & 0xFFFF) as u16;
+  let my_id4  = dgram_id4.unwrap_or(pid_id);
+  let my_id6  = dgram_id6.unwrap_or(pid_id);
 
   let interval = Duration::from_millis(args.interval);
   let period   = Duration::from_millis(args.period);
@@ -103,7 +104,8 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
 
       let is_ipv6  = hosts[idx].is_ipv6;
       let kind = if is_ipv6 { kind6 } else { kind4 };
-      let pkt = build_icmp_packet(my_id, seq, args.size, is_ipv6, kind);
+      let pkt_id = if is_ipv6 { my_id6 } else { my_id4 };
+      let pkt = build_icmp_packet(pkt_id, seq, args.size, is_ipv6, kind);
 
       let sent = match hosts[idx].addr {
         IpAddr::V4(ref a) => fd4.map(|fd| send_ping_v4(fd, a, &pkt)).unwrap_or(false),
@@ -136,15 +138,13 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
       }
     }
 
-    for (fd_opt, is_v6, kind) in &[(fd4, false, kind4), (fd6, true, kind6)] {
+    for (fd_opt, is_v6, kind, expected_id) in &[(fd4, false, kind4, my_id4), (fd6, true,  kind6, my_id6),] {
       let fd = match fd_opt { Some(f) => *f, None => continue };
       loop {
-        let received = match recv_ping(fd, &mut recv_buf, *is_v6, *kind) {
+        let received = match recv_ping(fd, &mut recv_buf, *is_v6, *kind, Some(*expected_id)) {
           Some(r) => r,
           None => break,
         };
-
-        if received.id != my_id { continue; }
 
         if let Some(pending) = seqmap.get(&received.seq) {
           if Instant::now().duration_since(pending.sent_at) > timeout {
