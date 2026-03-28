@@ -52,8 +52,13 @@ impl HostEntry {
     self.total_time += rtt;
     self.max_reply = Some(self.max_reply.map_or(rtt, |m| m.max(rtt)));
     self.min_reply = Some(self.min_reply.map_or(rtt, |m| m.min(rtt)));
-    if let Some(slot) = self.resp_times.get_mut(ping_index as usize) {
-      *slot = Some(rtt);
+    let idx = ping_index as usize;
+    if idx < self.resp_times.len() {
+      // count-mode: pre-allocated slot exists, write in place
+      self.resp_times[idx] = Some(rtt);
+    } else {
+      // loop/default-mode: resp_times is empty or shorter than ping_index, append dynamically so -s statistics are never empty
+      self.resp_times.push(Some(rtt));
     }
   }
 
