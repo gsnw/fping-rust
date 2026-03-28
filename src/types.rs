@@ -1,5 +1,6 @@
 use std::net::IpAddr;
 use std::time::{Duration, Instant};
+use crate::constants::RESP_TIMES_CAP;
 
 #[derive(Debug)]
 pub struct HostEntry {
@@ -57,8 +58,12 @@ impl HostEntry {
       // count-mode: pre-allocated slot exists, write in place
       self.resp_times[idx] = Some(rtt);
     } else {
-      // loop/default-mode: resp_times is empty or shorter than ping_index, append dynamically so -s statistics are never empty
-      self.resp_times.push(Some(rtt));
+      if self.resp_times.len() < RESP_TIMES_CAP {
+        self.resp_times.push(Some(rtt));
+      } else {
+        let slot = (ping_index as usize) % RESP_TIMES_CAP;
+        self.resp_times[slot] = Some(rtt);
+      }
     }
   }
 

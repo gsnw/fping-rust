@@ -24,6 +24,7 @@ pub const _MAX_GENERATE: usize = 131_072;
 pub const _MAX_TARGET_NAME: usize = 255;
 
 /* Response flags */
+pub const RESP_TIMES_CAP: usize = 1000;
 pub const _RESP_WAITING: i64 = -1;
 pub const _RESP_UNUSED: i64 = -2;
 pub const _RESP_TIMEOUT: i64 = -4;
