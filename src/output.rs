@@ -4,9 +4,7 @@ use crate::types::HostEntry;
 
 pub fn sprint_tm(d: Duration) -> String {
   let ms = d.as_secs_f64() * 1000.0;
-  if ms < 0.0 {
-    format!("{:.2}", ms)
-  } else if ms < 1.0 {
+  if ms < 1.0 {
     format!("{:.3}", ms)
   } else if ms < 10.0 {
     format!("{:.2}", ms)
