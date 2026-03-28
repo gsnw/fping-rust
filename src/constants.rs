@@ -8,6 +8,11 @@ pub const ICMP_ECHO_REPLY: u8 = 0;
 pub const ICMP6_ECHO_REQUEST: u8 = 128;
 pub const ICMP6_ECHO_REPLY: u8 = 129;
 pub const ICMP_HEADER_LEN: usize = 8;
+pub const ICMP_TYPE_OFFSET: usize = 0;
+pub const ICMP_ID_OFFSET: usize = 4;
+pub const ICMP_SEQ_OFFSET: usize = 6;
+pub const ICMP_MIN_LEN: usize = 8;
+pub const IPV4_MIN_HDR_LEN: usize = 20;
 
 /* Default values */
 pub const _DEFAULT_INTERVAL_MS: u64 = 10;
