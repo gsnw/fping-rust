@@ -166,12 +166,11 @@ pub fn send_ping_v6(fd: RawFd, addr: &Ipv6Addr, pkt: &[u8]) -> bool {
 }
 
 pub struct ReceivedPing {
-  pub id: u16,
   pub seq: u16,
   pub raw_len: usize,
 }
 
-pub fn recv_ping(fd: RawFd, buf: &mut [u8], is_ipv6: bool, kind: SocketKind) -> Option<ReceivedPing> {
+pub fn recv_ping(fd: RawFd, buf: &mut [u8], is_ipv6: bool, kind: SocketKind, expected_id: Option<u16>) -> Option<ReceivedPing> {
   let mut src: libc::sockaddr_storage = unsafe { std::mem::zeroed() };
   let mut src_len = std::mem::size_of::<libc::sockaddr_storage>() as socklen_t;
 
@@ -211,8 +210,11 @@ pub fn recv_ping(fd: RawFd, buf: &mut [u8], is_ipv6: bool, kind: SocketKind) -> 
 
   let id = u16::from_be_bytes([icmp[4], icmp[5]]);
 
+  if let Some(eid) = expected_id {
+    if id != eid { return None; }
+  }
+
   Some(ReceivedPing {
-    id,
     seq: u16::from_be_bytes([icmp[6], icmp[7]]),
     raw_len,
   })
