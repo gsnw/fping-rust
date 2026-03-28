@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::net::IpAddr;
+use std::os::unix::io::{OwnedFd, AsRawFd, FromRawFd};
 use std::time::{Duration, Instant};
 
 use crate::args::Args;
@@ -30,25 +31,30 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
   let has_v4 = hosts.iter().any(|h| !h.is_ipv6);
   let has_v6 = hosts.iter().any(|h| h.is_ipv6);
 
-  let (fd4, kind4, dgram_id4) = if has_v4 {
+  let (owned_fd4, kind4, dgram_id4): (Option<OwnedFd>, SocketKind, Option<u16>) = if has_v4 {
     let (fd, kind, kid) = open_raw_socket(false).unwrap_or_else(|e| {
       eprintln!("fping: {}", e);
       std::process::exit(3);
     });
-    (Some(fd), kind, kid)
+    let owned = unsafe { OwnedFd::from_raw_fd(fd) };
+    (Some(owned), kind, kid)
   } else {
     (None, SocketKind::Raw, None)
   };
 
-  let (fd6, kind6, dgram_id6) = if has_v6 {
+  let (owned_fd6, kind6, dgram_id6): (Option<OwnedFd>, SocketKind, Option<u16>) = if has_v6 {
     let (fd, kind, kid) = open_raw_socket(true).unwrap_or_else(|e| {
       eprintln!("fping: {}", e);
       std::process::exit(3);
     });
-    (Some(fd), kind, kid)
+    let owned = unsafe { OwnedFd::from_raw_fd(fd) };
+    (Some(owned), kind, kid)
   } else {
     (None, SocketKind::Raw, None)
   };
+
+  let fd4 = owned_fd4.as_ref().map(|o| o.as_raw_fd());
+  let fd6 = owned_fd6.as_ref().map(|o| o.as_raw_fd());
 
   let pid_id = (std::process::id() & 0xFFFF) as u16;
   let my_id = dgram_id4.or(dgram_id6).unwrap_or(pid_id);
