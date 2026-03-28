@@ -1,4 +1,13 @@
-# Changelog
+fping-rust 0.1.1 (2026-03-28)
+======================
+- fix: validate ICMP ID per socket, fix dual-stack ID mismatch (#15, @gsnw-sebast)
+- fix: close raw sockets via OwnedFd to prevent fd leak (#14, @gsnw-sebast)
+- fix: record RTTs in loop/default mode for correct -s statistics (#13, @gsnw-sebast)
+- fix: Sequence number collisions (#12, @gsnw-sebast)
+- fix: remove spurious .to_be() in send_ping_v4 (#10, @ijohanne)
+
+fping-rust 0.1.0 (2026-03-19)
+======================
 - Update cargo metadata and github action release
 - Add metadata description and license
 - Add github action codeQL
