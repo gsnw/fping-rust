@@ -2,6 +2,8 @@
 
 [<img alt="github" src="https://img.shields.io/badge/github-gsnw/fping-rust?style=for-the-badge&logo=github" height="20">](https://github.com/gsnw/fping-rust)
 [![Rust CI](https://github.com/gsnw/fping-rust/actions/workflows/rust-ci.yml/badge.svg)](https://github.com/gsnw/fping-rust/actions/workflows/rust-ci.yml)
+[![Downloads](https://img.shields.io/github/downloads/gsnw/fping-rust/total.svg)](https://github.com/gsnw/fping-rust/releases)
+[![Crates.io](https://img.shields.io/crates/v/fping-rust.svg)](https://crates.io/crates/fping-rust)
 
 fping-rust is an attempt to translate the fping program into Rust.
 
