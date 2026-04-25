@@ -248,7 +248,7 @@ fn icmp_checksum(data: &[u8]) -> u16 {
   !(sum as u16)
 }
 
-pub fn send_ping_v4(fd: RawFd, addr: &Ipv4Addr, pkt: &[u8], iface_idx: Option<u32>) -> bool {
+pub fn send_ping_v4(fd: RawFd, addr: &Ipv4Addr, pkt: &[u8], iface_idx: Option<u32>, src_addr: Option<Ipv4Addr>) -> bool {
   unsafe {
     let mut sa: libc::sockaddr_in = std::mem::zeroed();
     sa.sin_family = AF_INET as libc::sa_family_t;
@@ -279,6 +279,10 @@ pub fn send_ping_v4(fd: RawFd, addr: &Ipv4Addr, pkt: &[u8], iface_idx: Option<u3
       std::ptr::write_bytes(pktinfo, 0, 1);
       (*pktinfo).ipi_ifindex = idx as _;
 
+      if let Some(src) = src_addr {
+        (*pktinfo).ipi_spec_dst.s_addr = u32::from_ne_bytes(src.octets());
+      }
+
       sendmsg(fd, &msg, 0)
     } else {
       sendto(
@@ -294,7 +298,7 @@ pub fn send_ping_v4(fd: RawFd, addr: &Ipv4Addr, pkt: &[u8], iface_idx: Option<u3
   }
 }
 
-pub fn send_ping_v6(fd: RawFd, addr: &Ipv6Addr, pkt: &[u8], iface_idx: Option<u32>) -> bool {
+pub fn send_ping_v6(fd: RawFd, addr: &Ipv6Addr, pkt: &[u8], iface_idx: Option<u32>, src_addr: Option<Ipv6Addr>) -> bool {
   unsafe {
     let mut sa: libc::sockaddr_in6 = std::mem::zeroed();
     sa.sin6_family = AF_INET6 as libc::sa_family_t;
@@ -324,6 +328,10 @@ pub fn send_ping_v6(fd: RawFd, addr: &Ipv6Addr, pkt: &[u8], iface_idx: Option<u3
       let pktinfo = libc::CMSG_DATA(cmsg) as *mut libc::in6_pktinfo;
       std::ptr::write_bytes(pktinfo, 0, 1);
       (*pktinfo).ipi6_ifindex = idx;
+
+      if let Some(src) = src_addr {
+        (*pktinfo).ipi6_addr.s6_addr = src.octets();
+      }
 
       sendmsg(fd, &msg, 0)
     } else {
