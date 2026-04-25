@@ -9,7 +9,7 @@ use crate::output::{
   print_global_stats, print_per_host_stats, print_recv, print_timeout,
   max_host_len, GlobalStatsSummary, RecvLineOpts, TimeoutLineOpts,
 };
-use crate::socket::{build_icmp_packet, open_raw_socket, recv_ping, send_ping_v4, send_ping_v6, set_outgoing_iface_v4, set_outgoing_iface_v6, SocketKind};
+use crate::socket::{bind_source_v4, bind_source_v6, build_icmp_packet, open_raw_socket, recv_ping, send_ping_v4, send_ping_v6, set_outgoing_iface_v4, set_outgoing_iface_v6, SocketKind};
 use crate::types::{HostEntry, PendingPing};
 
 pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
@@ -55,6 +55,31 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
 
   let fd4 = owned_fd4.as_ref().map(|o| o.as_raw_fd());
   let fd6 = owned_fd6.as_ref().map(|o| o.as_raw_fd());
+
+  if let Some(ref src) = args.source {
+    match src.parse::<IpAddr>() {
+      Ok(IpAddr::V4(_)) => {
+        if let Some(fd) = fd4 {
+          if let Err(e) = bind_source_v4(fd, src) {
+            eprintln!("fping: {}", e);
+            std::process::exit(1);
+          }
+        }
+      }
+      Ok(IpAddr::V6(_)) => {
+        if let Some(fd) = fd6 {
+          if let Err(e) = bind_source_v6(fd, src) {
+            eprintln!("fping: {}", e);
+            std::process::exit(1);
+          }
+        }
+      }
+      Err(_) => {
+        eprintln!("fping: -S/--source '{}' is not a valid IP address", src);
+        std::process::exit(1);
+      }
+    }
+  }
 
   let oiface_idx4: Option<u32> = if let Some(ref iface) = args.oiface {
     if let Some(fd) = fd4 {
