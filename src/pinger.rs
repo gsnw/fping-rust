@@ -9,7 +9,7 @@ use crate::output::{
   print_global_stats, print_per_host_stats, print_recv, print_timeout,
   max_host_len, GlobalStatsSummary, RecvLineOpts, TimeoutLineOpts,
 };
-use crate::socket::{build_icmp_packet, open_raw_socket, recv_ping, send_ping_v4, send_ping_v6, SocketKind};
+use crate::socket::{build_icmp_packet, open_raw_socket, recv_ping, send_ping_v4, send_ping_v6, set_outgoing_iface_v4, set_outgoing_iface_v6, SocketKind};
 use crate::types::{HostEntry, PendingPing};
 
 pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
@@ -55,6 +55,24 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
 
   let fd4 = owned_fd4.as_ref().map(|o| o.as_raw_fd());
   let fd6 = owned_fd6.as_ref().map(|o| o.as_raw_fd());
+
+  let oiface_idx4: Option<u32> = if let Some(ref iface) = args.oiface {
+    if let Some(fd) = fd4 {
+      match set_outgoing_iface_v4(fd, iface) {
+        Ok(idx) => Some(idx),
+        Err(e)  => { eprintln!("fping: {}", e); std::process::exit(1); }
+      }
+    } else { None }
+  } else { None };
+
+  let oiface_idx6: Option<u32> = if let Some(ref iface) = args.oiface {
+    if let Some(fd) = fd6 {
+      match set_outgoing_iface_v6(fd, iface) {
+        Ok(idx) => Some(idx),
+        Err(e)  => { eprintln!("fping: {}", e); std::process::exit(1); }
+      }
+    } else { None }
+  } else { None };
 
   let pid_id  = (std::process::id() & 0xFFFF) as u16;
   let my_id4  = dgram_id4.unwrap_or(pid_id);
@@ -108,8 +126,8 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
       let pkt = build_icmp_packet(pkt_id, seq, args.size, is_ipv6, kind);
 
       let sent = match hosts[idx].addr {
-        IpAddr::V4(ref a) => fd4.map(|fd| send_ping_v4(fd, a, &pkt)).unwrap_or(false),
-        IpAddr::V6(ref a) => fd6.map(|fd| send_ping_v6(fd, a, &pkt)).unwrap_or(false),
+        IpAddr::V4(ref a) => fd4.map(|fd| send_ping_v4(fd, a, &pkt, oiface_idx4)).unwrap_or(false),
+        IpAddr::V6(ref a) => fd6.map(|fd| send_ping_v6(fd, a, &pkt, oiface_idx6)).unwrap_or(false),
       };
 
       if sent && !seqmap.contains_key(&seq) {

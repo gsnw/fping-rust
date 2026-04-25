@@ -68,6 +68,7 @@ Options:
   -6, --ipv6               Use IPv6 only
       --report-all-rtts    Show all individual RTTs
   -x, --reachable <N>      Minimum number of reachable hosts to be considered success
+      --oiface <IFACE>     Bind outgoing packets to this network interface (e.g. eth0)
   -h, --help               Print help
   -V, --version            Print version
 ```

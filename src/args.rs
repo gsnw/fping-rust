@@ -98,6 +98,10 @@ pub struct Args {
   /// Minimum number of reachable hosts to be considered success
   #[arg(short = 'x', long = "reachable", value_name = "N")]
   pub reachable: Option<u32>,
+
+  /// Bind outgoing packets to this network interface (e.g. eth0)
+  #[arg(long = "oiface", value_name = "IFACE")]
+  pub oiface: Option<String>,
 }
 
 impl Args {
