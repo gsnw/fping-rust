@@ -18,6 +18,43 @@ pub enum SocketKind {
   Dgram,
 }
 
+pub fn bind_source_v4(fd: RawFd, src: &str) -> Result<(), String> {
+  let addr: Ipv4Addr = src.parse().map_err(|_| format!("Invalid IPv4 source address: '{}'", src))?;
+
+  unsafe {
+    let mut sa: libc::sockaddr_in = std::mem::zeroed();
+    sa.sin_family = AF_INET as libc::sa_family_t;
+    sa.sin_addr.s_addr = u32::from_ne_bytes(addr.octets());
+    // sin_port = 0 -> kernel picks an ephemeral port (irrelevant for RAW/DGRAM-ICMP)
+
+    let r = libc::bind(fd, &sa as *const _ as *const libc::sockaddr, std::mem::size_of::<libc::sockaddr_in>() as socklen_t);
+
+    if r < 0 {
+      return Err(format!("bind source address {} failed: {}", src, std::io::Error::last_os_error()));
+    }
+  }
+
+  Ok(())
+}
+
+pub fn bind_source_v6(fd: RawFd, src: &str) -> Result<(), String> {
+  let addr: Ipv6Addr = src.parse().map_err(|_| format!("Invalid IPv6 source address: '{}'", src))?;
+
+  unsafe {
+    let mut sa: libc::sockaddr_in6 = std::mem::zeroed();
+    sa.sin6_family = AF_INET6 as libc::sa_family_t;
+    sa.sin6_addr.s6_addr = addr.octets();
+
+    let r = libc::bind(fd, &sa as *const _ as *const libc::sockaddr, std::mem::size_of::<libc::sockaddr_in6>() as socklen_t);
+
+    if r < 0 {
+      return Err(format!("bind source address {} failed: {}", src, std::io::Error::last_os_error()));
+    }
+  }
+
+  Ok(())
+}
+
 pub fn open_raw_socket(is_ipv6: bool) -> Result<(RawFd, SocketKind, Option<u16>), String> {
   let (domain, proto) = if is_ipv6 {
     (AF_INET6, IPPROTO_ICMPV6)

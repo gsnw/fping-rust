@@ -99,6 +99,10 @@ pub struct Args {
   #[arg(short = 'x', long = "reachable", value_name = "N")]
   pub reachable: Option<u32>,
 
+  /// Source address for outgoing pings
+  #[arg(short = 'S', long = "source")]
+  pub source: Option<String>,
+
   /// Bind outgoing packets to this network interface (e.g. eth0)
   #[arg(long = "oiface", value_name = "IFACE")]
   pub oiface: Option<String>,
