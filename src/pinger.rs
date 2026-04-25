@@ -99,6 +99,9 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
     } else { None }
   } else { None };
 
+  let src_v4: Option<std::net::Ipv4Addr> = args.source.as_ref().and_then(|s| s.parse::<IpAddr>().ok()).and_then(|a| if let IpAddr::V4(v4) = a { Some(v4) } else { None });
+  let src_v6: Option<std::net::Ipv6Addr> = args.source.as_ref().and_then(|s| s.parse::<IpAddr>().ok()).and_then(|a| if let IpAddr::V6(v6) = a { Some(v6) } else { None });
+
   let pid_id  = (std::process::id() & 0xFFFF) as u16;
   let my_id4  = dgram_id4.unwrap_or(pid_id);
   let my_id6  = dgram_id6.unwrap_or(pid_id);
@@ -151,8 +154,8 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
       let pkt = build_icmp_packet(pkt_id, seq, args.size, is_ipv6, kind);
 
       let sent = match hosts[idx].addr {
-        IpAddr::V4(ref a) => fd4.map(|fd| send_ping_v4(fd, a, &pkt, oiface_idx4)).unwrap_or(false),
-        IpAddr::V6(ref a) => fd6.map(|fd| send_ping_v6(fd, a, &pkt, oiface_idx6)).unwrap_or(false),
+        IpAddr::V4(ref a) => fd4.map(|fd| send_ping_v4(fd, a, &pkt, oiface_idx4, src_v4)).unwrap_or(false),
+        IpAddr::V6(ref a) => fd6.map(|fd| send_ping_v6(fd, a, &pkt, oiface_idx6, src_v6)).unwrap_or(false),
       };
 
       if sent && !seqmap.contains_key(&seq) {
