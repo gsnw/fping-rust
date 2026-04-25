@@ -1,3 +1,7 @@
+fping-rust 0.2.0 (new)
+======================
+- New option --oiface for outgoing interface (#18, @gsnw-sebast)
+
 fping-rust 0.1.1 (2026-03-28)
 ======================
 - fix: validate ICMP ID per socket, fix dual-stack ID mismatch (#15, @gsnw-sebast)

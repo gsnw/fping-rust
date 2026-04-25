@@ -1,10 +1,11 @@
 use libc::{
-  c_void, recvfrom, sendto, sockaddr, socklen_t,
+  c_void, recvfrom, sendmsg, sendto, sockaddr, socklen_t,
   AF_INET, AF_INET6, IPPROTO_ICMP, IPPROTO_ICMPV6, SOCK_DGRAM, SOCK_RAW,
 };
 use std::io::ErrorKind;
 use std::net::{Ipv4Addr, Ipv6Addr};
 use std::os::unix::io::RawFd;
+use std::ffi::CString;
 
 use crate::constants::{
   ICMP6_ECHO_REPLY, ICMP6_ECHO_REQUEST, ICMP_ECHO_REPLY, ICMP_ECHO_REQUEST, ICMP_HEADER_LEN,
@@ -120,6 +121,52 @@ fn set_nonblocking(fd: RawFd) -> Result<(), std::io::Error> {
   }
 }
 
+pub fn set_outgoing_iface_v4(fd: RawFd, iface: &str) -> Result<u32, String> {
+  let cname = CString::new(iface).map_err(|_| format!("Invalid interface name: {}", iface))?;
+  let idx = unsafe { libc::if_nametoindex(cname.as_ptr()) };
+  if idx == 0 {
+    return Err(format!("fping: unknown interface '{}'", iface));
+  }
+
+  let on: libc::c_int = 1;
+  let r = unsafe {
+    libc::setsockopt(
+      fd,
+      libc::IPPROTO_IP,
+      libc::IP_PKTINFO,
+      &on as *const _ as *const libc::c_void,
+      std::mem::size_of::<libc::c_int>() as socklen_t,
+    )
+  };
+
+  if r < 0 {
+    return Err(format!("setsockopt IP_PKTINFO failed: {}", std::io::Error::last_os_error()));
+  }
+
+  Ok(idx)
+}
+
+pub fn set_outgoing_iface_v6(fd: RawFd, iface: &str) -> Result<u32, String> {
+  let cname = CString::new(iface).map_err(|_| format!("Invalid interface name: {}", iface))?;
+
+  let idx = unsafe { libc::if_nametoindex(cname.as_ptr()) };
+  if idx == 0 {
+    return Err(format!("fping: unknown interface '{}'", iface));
+  }
+
+  let _ = unsafe {
+    libc::setsockopt(
+      fd,
+      libc::IPPROTO_IPV6,
+      libc::IPV6_MULTICAST_IF,
+      &idx as *const _ as *const libc::c_void,
+      std::mem::size_of::<u32>() as socklen_t,
+    )
+  };
+
+  Ok(idx)
+}
+
 pub fn build_icmp_packet(id: u16, seq: u16, data_size: usize, is_ipv6: bool, kind: SocketKind) -> Vec<u8> {
   let total = ICMP_HEADER_LEN + data_size;
   let mut pkt = vec![0u8; total];
@@ -164,38 +211,94 @@ fn icmp_checksum(data: &[u8]) -> u16 {
   !(sum as u16)
 }
 
-pub fn send_ping_v4(fd: RawFd, addr: &Ipv4Addr, pkt: &[u8]) -> bool {
+pub fn send_ping_v4(fd: RawFd, addr: &Ipv4Addr, pkt: &[u8], iface_idx: Option<u32>) -> bool {
   unsafe {
     let mut sa: libc::sockaddr_in = std::mem::zeroed();
     sa.sin_family = AF_INET as libc::sa_family_t;
     sa.sin_addr.s_addr = u32::from_ne_bytes(addr.octets());
 
-    let n = sendto(
-      fd,
-      pkt.as_ptr() as *const c_void,
-      pkt.len(),
-      0,
-      &sa as *const _ as *const sockaddr,
-      std::mem::size_of::<libc::sockaddr_in>() as socklen_t,
-    );
+    let n = if let Some(idx) = iface_idx {
+      let iov = libc::iovec {
+      iov_base: pkt.as_ptr() as *mut c_void,
+      iov_len: pkt.len(),
+      };
+      let cmsg_space = libc::CMSG_SPACE(std::mem::size_of::<libc::in_pktinfo>() as u32) as usize;
+      let mut cmsg_buf = vec![0u8; cmsg_space];
+
+      let mut msg: libc::msghdr = std::mem::zeroed();
+      msg.msg_name = &sa as *const _ as *mut libc::c_void;
+      msg.msg_namelen = std::mem::size_of::<libc::sockaddr_in>() as socklen_t;
+      msg.msg_iov = &iov as *const _ as *mut libc::iovec;
+      msg.msg_iovlen = 1;
+      msg.msg_control = cmsg_buf.as_mut_ptr() as *mut libc::c_void;
+      msg.msg_controllen = cmsg_space as _;
+
+      let cmsg = libc::CMSG_FIRSTHDR(&msg);
+      (*cmsg).cmsg_level = libc::IPPROTO_IP;
+      (*cmsg).cmsg_type = libc::IP_PKTINFO;
+      (*cmsg).cmsg_len = libc::CMSG_LEN(std::mem::size_of::<libc::in_pktinfo>() as u32) as _;
+
+      let pktinfo = libc::CMSG_DATA(cmsg) as *mut libc::in_pktinfo;
+      std::ptr::write_bytes(pktinfo, 0, 1);
+      (*pktinfo).ipi_ifindex = idx as _;
+
+      sendmsg(fd, &msg, 0)
+    } else {
+      sendto(
+        fd,
+        pkt.as_ptr() as *const c_void,
+        pkt.len(),
+        0,
+        &sa as *const _ as *const sockaddr,
+        std::mem::size_of::<libc::sockaddr_in>() as socklen_t,
+      )
+    };
     n == pkt.len() as isize
   }
 }
 
-pub fn send_ping_v6(fd: RawFd, addr: &Ipv6Addr, pkt: &[u8]) -> bool {
+pub fn send_ping_v6(fd: RawFd, addr: &Ipv6Addr, pkt: &[u8], iface_idx: Option<u32>) -> bool {
   unsafe {
     let mut sa: libc::sockaddr_in6 = std::mem::zeroed();
     sa.sin6_family = AF_INET6 as libc::sa_family_t;
     sa.sin6_addr.s6_addr = addr.octets();
 
-    let n = sendto(
-      fd,
-      pkt.as_ptr() as *const c_void,
-      pkt.len(),
-      0,
-      &sa as *const _ as *const sockaddr,
-      std::mem::size_of::<libc::sockaddr_in6>() as socklen_t,
-    );
+    let n = if let Some(idx) = iface_idx {
+      let iov = libc::iovec {
+        iov_base: pkt.as_ptr() as *mut c_void,
+        iov_len: pkt.len(),
+      };
+      let cmsg_space = libc::CMSG_SPACE(std::mem::size_of::<libc::in6_pktinfo>() as u32) as usize;
+      let mut cmsg_buf = vec![0u8; cmsg_space];
+
+      let mut msg: libc::msghdr = std::mem::zeroed();
+      msg.msg_name = &sa as *const _ as *mut libc::c_void;
+      msg.msg_namelen = std::mem::size_of::<libc::sockaddr_in6>() as socklen_t;
+      msg.msg_iov = &iov as *const _ as *mut libc::iovec;
+      msg.msg_iovlen = 1;
+      msg.msg_control = cmsg_buf.as_mut_ptr() as *mut libc::c_void;
+      msg.msg_controllen = cmsg_space as _;
+
+      let cmsg = libc::CMSG_FIRSTHDR(&msg);
+      (*cmsg).cmsg_level = libc::IPPROTO_IPV6;
+      (*cmsg).cmsg_type = libc::IPV6_PKTINFO;
+      (*cmsg).cmsg_len = libc::CMSG_LEN(std::mem::size_of::<libc::in6_pktinfo>() as u32) as _;
+
+      let pktinfo = libc::CMSG_DATA(cmsg) as *mut libc::in6_pktinfo;
+      std::ptr::write_bytes(pktinfo, 0, 1);
+      (*pktinfo).ipi6_ifindex = idx;
+
+      sendmsg(fd, &msg, 0)
+    } else {
+      sendto(
+        fd,
+        pkt.as_ptr() as *const c_void,
+        pkt.len(),
+        0,
+        &sa as *const _ as *const sockaddr,
+        std::mem::size_of::<libc::sockaddr_in6>() as socklen_t,
+      )
+    };
     n == pkt.len() as isize
   }
 }
