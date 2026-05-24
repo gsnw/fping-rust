@@ -30,10 +30,10 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build
-        run: cargo build --all-features --verbose
+        run: make build
 
       - name: Run tests
-        run: cargo test --all-features --verbose -- --nocapture
+        run: make test
 
   Test-Asymmetric-Routing:
     needs: [ci]
@@ -57,7 +57,7 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build
-        run: cargo build --all-features --verbose
+        run: make build
 
       - name: Install tcpdump and net-tools
         run: |
