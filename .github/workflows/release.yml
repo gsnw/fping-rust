@@ -23,41 +23,9 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-
-      - name: Get metadata (name + version)
-        id: meta
-        run: |
-          NAME=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].name')
-          VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')
-          echo "name=$NAME" >> $GITHUB_OUTPUT
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-      - name: Build release binary
-        run: cargo build --release
-
-      - name: Package binary (Linux/macOS)
-        if: runner.os != 'Windows'
-        run: |
-          BIN_NAME="fping"
-          VERSION="${{ steps.meta.outputs.version }}"
-          OS=$(echo "$RUNNER_OS" | tr '[:upper:]' '[:lower:]')
-
-          ARCH=$(uname -m)
-          # Normalize arch names (optional, cleaner output)
-          if [[ "$ARCH" == "x86_64" ]]; then ARCH="x86_64"; fi
-          if [[ "$ARCH" == "aarch64" ]]; then ARCH="arm64"; fi
-
-          ARCHIVE_NAME="${BIN_NAME}-${VERSION}-${OS}-${ARCH}"
-
-          mkdir dist
-          cp target/release/${BIN_NAME} dist/ || cp target/release/* dist/
-          tar -czf ${ARCHIVE_NAME}.tar.gz -C dist .
-
-          if [[ "$RUNNER_OS" == "macOS" ]]; then
-            shasum -a 256 ${ARCHIVE_NAME}.tar.gz > ${ARCHIVE_NAME}.tar.gz.sha256
-          else
-            sha256sum ${ARCHIVE_NAME}.tar.gz > ${ARCHIVE_NAME}.tar.gz.sha256
-          fi
+      
+      - name: Build and Package
+        run: make package
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
