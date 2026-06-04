@@ -1,5 +1,6 @@
 fping-rust 0.2.0 (new)
 ======================
+- Add ncurses TUI mode for real-time host monitoring (#19, @gsnw-sebast)
 - New option --oiface for outgoing interface and source ip flag (#18, @gsnw-sebast)
 
 fping-rust 0.1.1 (2026-03-28)
