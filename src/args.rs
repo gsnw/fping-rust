@@ -106,6 +106,10 @@ pub struct Args {
   /// Bind outgoing packets to this network interface (e.g. eth0)
   #[arg(long = "oiface", value_name = "IFACE")]
   pub oiface: Option<String>,
+
+  /// Enable TUI mode (ncurses)
+  #[arg(long)]
+  pub tui: bool,
 }
 
 impl Args {

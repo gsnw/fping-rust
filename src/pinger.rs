@@ -123,9 +123,22 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
   let start = Instant::now();
   let max_len = max_host_len(&hosts);
 
+  let mut last_tui_update = Instant::now();
+  if args.tui {
+    crate::tui::init();
+  }
+
   // Start main_loop
   loop {
     let now = Instant::now();
+
+    if args.tui && now.duration_since(last_tui_update).as_millis() >= 100 {
+      if !crate::tui::update(&hosts, start) {
+        // Exit the loop when ‘q’ or ESC is pressed
+        break;
+      }
+      last_tui_update = now;
+    }
 
     if hosts.iter().all(|h| h.done) && seqmap.is_empty() {
       break;
@@ -210,7 +223,7 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
             hosts[hi].done = true;
           }
 
-          if !args.quiet && !args.unreach {
+          if !args.quiet && !args.unreach && !args.tui {
             if is_default_mode {
               if first_reply {
                 print_alive(&hosts[hi], args.timestamp, args.json);
@@ -242,7 +255,7 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
     for seq in timed_out {
       if let Some(pending) = seqmap.remove(&seq) {
         let is_default_mode = count.is_none() && !loop_mode;
-        if !is_default_mode && !args.quiet && !args.alive {
+        if !is_default_mode && !args.quiet && !args.alive && !args.tui {
           print_timeout(TimeoutLineOpts {
             host: &hosts[pending.host_index],
             ping_index: pending.ping_index,
@@ -281,7 +294,11 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
   let max_len = max_host_len(&hosts);
   let is_default_mode = count.is_none() && !loop_mode;
 
-  if is_default_mode {
+  if args.tui {
+    crate::tui::cleanup();
+  }
+
+  if is_default_mode && !args.tui {
     if !args.quiet {
       for h in &hosts {
         if h.num_recv == 0 {
@@ -289,20 +306,20 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
         }
       }
     }
-  } else {
+  } else if !args.tui {
     for h in &hosts {
       if args.alive  && h.num_recv > 0 { println!("{}", h.display); }
       if args.unreach && h.num_recv == 0 { println!("{}", h.display); }
     }
   }
 
-  if count.is_some() && !args.alive && !args.unreach {
+  if count.is_some() && !args.alive && !args.unreach && !args.tui {
     for h in &hosts {
       print_per_host_stats(h, max_len, args.json, verbose_count || args.report_all_rtts);
     }
   }
 
-  if args.stats {
+  if args.stats && !args.tui {
     let all_rtts: Vec<Duration> = hosts.iter()
       .flat_map(|h| h.resp_times.iter().filter_map(|r| *r))
       .collect();

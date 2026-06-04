@@ -6,6 +6,7 @@ mod args;
 mod constants;
 mod dns;
 mod output;
+mod tui;
 mod pinger;
 mod socket;
 mod types;
