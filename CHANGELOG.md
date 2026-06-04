@@ -1,5 +1,9 @@
 fping-rust 0.2.0 (new)
 ======================
+- Add ncurses TUI quit/reset hotkeys (#21, @gsnw-sebast)
+  - fix: Keep ncurses TUI open after finishing pings
+  - fix: Move ncurses TUI status info to footer and fix refresh rate
+- ci: Creating a Makefile for a simple build (#20, @gsnw-sebast)
 - Add ncurses TUI mode for real-time host monitoring (#19, @gsnw-sebast)
 - New option --oiface for outgoing interface and source ip flag (#18, @gsnw-sebast)
 

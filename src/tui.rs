@@ -1,6 +1,7 @@
 use ncurses::*;
 use std::time::Instant;
 use crate::types::HostEntry;
+use chrono::Local;
 
 pub enum TuiAction {
   Continue,
@@ -62,6 +63,9 @@ pub fn update(hosts: &[HostEntry], start: Instant) -> TuiAction {
       display, h.num_sent, h.num_recv, loss, min_s, avg_s, max_s, last_s));
     row += 1;
   }
+
+  mvprintw(row + 1, 0, "==========================================================================================");
+  mvprintw(row + 2, 0, &format!(" Updated: {} | Interval: 200ms | Hosts: {}/{} visible", Local::now().format("%H:%M:%S"), hosts.len(), hosts.len()));
 
   refresh();
   TuiAction::Continue
