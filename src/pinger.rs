@@ -133,7 +133,7 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
   loop {
     let now = Instant::now();
 
-    if args.tui && now.duration_since(last_tui_update).as_millis() >= 100 {
+    if args.tui && now.duration_since(last_tui_update).as_millis() >= 200 {
       match crate::tui::update(&hosts, start) {
         crate::tui::TuiAction::Quit => break,
         crate::tui::TuiAction::Reset => {
