@@ -13,6 +13,7 @@ use crate::socket::{bind_source_v4, bind_source_v6, build_icmp_packet, open_raw_
 use crate::types::{HostEntry, PendingPing};
 
 pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
+  let hosts_backup = hosts_in.clone();
   let count = args.effective_count();
   let loop_mode = args.r#loop;
   let verbose_count = args.is_verbose_count();
@@ -120,7 +121,7 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
   let mut seq_counter: u32 = 0;
   let mut recv_buf = vec![0u8; 4096];
 
-  let start = Instant::now();
+  let mut start = Instant::now();
   let max_len = max_host_len(&hosts);
 
   let mut last_tui_update = Instant::now();
@@ -133,9 +134,28 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
     let now = Instant::now();
 
     if args.tui && now.duration_since(last_tui_update).as_millis() >= 100 {
-      if !crate::tui::update(&hosts, start) {
-        // Exit the loop when ‘q’ or ESC is pressed
-        break;
+      match crate::tui::update(&hosts, start) {
+        crate::tui::TuiAction::Quit => break,
+        crate::tui::TuiAction::Reset => {
+          seqmap.clear();
+          start = Instant::now();
+          hosts = hosts_backup
+            .iter()
+            .cloned()
+            .map(|(name, addr)| {
+              let is_ipv6 = addr.is_ipv6();
+              let display = if args.addr { addr.to_string() } else { name.clone() };
+              let mut h = HostEntry::new(name, addr, is_ipv6, count.unwrap_or(0));
+              h.display = display;
+              h
+            })
+            .collect();
+          for (i, h) in hosts.iter_mut().enumerate() {
+            h.next_send = Instant::now() + interval * i as u32;
+            h.retries_left = args.retry;
+          }
+        }
+        crate::tui::TuiAction::Continue => {}
       }
       last_tui_update = now;
     }
