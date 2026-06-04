@@ -160,7 +160,7 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
       last_tui_update = now;
     }
 
-    if hosts.iter().all(|h| h.done) && seqmap.is_empty() {
+    if !args.tui && hosts.iter().all(|h| h.done) && seqmap.is_empty() {
       break;
     }
 
