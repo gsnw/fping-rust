@@ -125,16 +125,18 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
   let max_len = max_host_len(&hosts);
 
   let mut last_tui_update = Instant::now();
-  if args.tui {
-    crate::tui::init();
-  }
+  let mut tui_state = if args.tui {
+    Some(crate::tui::init())
+  } else {
+    None
+  };
 
   // Start main_loop
   loop {
     let now = Instant::now();
 
     if args.tui && now.duration_since(last_tui_update).as_millis() >= 200 {
-      match crate::tui::update(&hosts, start) {
+      match crate::tui::update(tui_state.as_mut().unwrap(), &hosts, start) {
         crate::tui::TuiAction::Quit => break,
         crate::tui::TuiAction::Reset => {
           seqmap.clear();
@@ -315,7 +317,9 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
   let is_default_mode = count.is_none() && !loop_mode;
 
   if args.tui {
-    crate::tui::cleanup();
+    if let Some(state) = tui_state {
+      crate::tui::cleanup(state);
+    }
   }
 
   if is_default_mode && !args.tui {
