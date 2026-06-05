@@ -64,5 +64,8 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y tcpdump net-tools
 
-      - name: Test asymmetric routing (--oiface)
-        run: sudo ci/test-oiface.sh
+      - name: Test asymmetric routing over IPv4 (--oiface)
+        run: sudo ci/test-oiface-ipv4.sh
+
+      - name: Test asymmetric routing over IPv6 (--oiface)
+        run: sudo ci/test-oiface-ipv6.sh
