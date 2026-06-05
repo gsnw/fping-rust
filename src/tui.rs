@@ -1,48 +1,74 @@
-use ncurses::*;
+use cursive::views::TextView;
+use cursive::view::Nameable;
+use cursive::event::Key;
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use crate::types::HostEntry;
 use chrono::Local;
 
+#[derive(Clone, Copy)]
 pub enum TuiAction {
   Continue,
   Quit,
   Reset,
 }
 
-pub fn init() {
-  initscr();
-  cbreak();
-  noecho();
-  timeout(0); // non-blocking getch()
-  curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
+pub struct TuiState {
+  pub runner: cursive::CursiveRunner<cursive::CursiveRunnable>,
+  action: Arc<Mutex<TuiAction>>,
 }
 
-pub fn cleanup() {
-  endwin();
+pub fn init() -> TuiState {
+  let mut siv = cursive::default();
+  let action = Arc::new(Mutex::new(TuiAction::Continue));
+
+  let act_q = action.clone();
+  siv.add_global_callback('q', move |_| *act_q.lock().unwrap() = TuiAction::Quit);
+
+  let act_esc = action.clone();
+  siv.add_global_callback(Key::Esc, move |_| *act_esc.lock().unwrap() = TuiAction::Quit);
+
+  let act_r = action.clone();
+  siv.add_global_callback('r', move |_| *act_r.lock().unwrap() = TuiAction::Reset);
+
+  let act_r_upper = action.clone();
+  siv.add_global_callback('R', move |_| *act_r_upper.lock().unwrap() = TuiAction::Reset);
+
+  siv.add_layer(TextView::new("Initializing...").with_name("main_view"));
+
+  let runner = siv.into_runner();
+  TuiState { runner, action }
 }
 
-pub fn update(hosts: &[HostEntry], start: Instant) -> TuiAction {
-  // Process user input (press q or ESC to exit)
-  let ch = getch();
-  if ch == 'q' as i32 || ch == 27 {
-    return TuiAction::Quit;
-  } else if ch == 'r' as i32 || ch == 'R' as i32 {
-    return TuiAction::Reset;
-  }
+pub fn cleanup(_state: TuiState) {
 
-  clear();
+}
+
+pub fn update(state: &mut TuiState, hosts: &[HostEntry], start: Instant) -> TuiAction {
+  state.runner.step();
+
+  let current_action = {
+    let mut act = state.action.lock().unwrap();
+    let val = *act;
+    if let TuiAction::Reset = val { *act = TuiAction::Continue; }
+    val
+  };
+
+  if !state.runner.is_running() { return TuiAction::Quit; }
+  if let TuiAction::Quit = current_action { return current_action; }
+
   let elapsed = start.elapsed().as_secs_f64();
+  let mut buf = String::new();
 
-  mvprintw(0, 0, "==========================================================================================");
-  mvprintw(1, 0, &format!(" fping-rs TUI | Hosts: {} | Elapsed: {:.1}s", hosts.len(), elapsed));
-  mvprintw(2, 0, " Controls: [q] Quit / Exit TUI  |  [r] Reset Statistics");
-  mvprintw(3, 0, "==========================================================================================");
+  buf.push_str("==========================================================================================\n");
+  buf.push_str(&format!(" fping-rs TUI | Hosts: {} | Elapsed: {:.1}s\n", hosts.len(), elapsed));
+  buf.push_str(" Controls: [q] / [ESC] Quit TUI  |  [r] Reset Statistics\n");
+  buf.push_str("==========================================================================================\n\n");
 
-  mvprintw(5, 0, &format!("{:<20} | {:>6} | {:>6} | {:>6} | {:>8} | {:>8} | {:>8} | {:>8}",
-    "Host", "Sent", "Recv", "Loss%", "Min", "Avg", "Max", "Last"));
-  mvprintw(6, 0, &"-".repeat(90));
+  buf.push_str(&format!("{:<20} | {:>6} | {:>6} | {:>5}% | {:>8} | {:>8} | {:>8} | {:>8}\n",
+    "Host", "Sent", "Recv", "Loss", "Min", "Avg", "Max", "Last"));
+  buf.push_str(&format!("{}\n", "-".repeat(90)));
 
-  let mut row = 7;
   for h in hosts {
     let loss = h.loss_pct();
 
@@ -59,14 +85,17 @@ pub fn update(hosts: &[HostEntry], start: Instant) -> TuiAction {
       display.push_str("...");
     }
 
-    mvprintw(row, 0, &format!("{:<20} | {:>6} | {:>6} | {:>5}% | {:>8} | {:>8} | {:>8} | {:>8}",
+    buf.push_str(&format!("{:<20} | {:>6} | {:>6} | {:>5}% | {:>8} | {:>8} | {:>8} | {:>8}\n",
       display, h.num_sent, h.num_recv, loss, min_s, avg_s, max_s, last_s));
-    row += 1;
   }
 
-  mvprintw(row + 1, 0, "==========================================================================================");
-  mvprintw(row + 2, 0, &format!(" Updated: {} | Interval: 200ms | Hosts: {}/{} visible", Local::now().format("%H:%M:%S"), hosts.len(), hosts.len()));
+  buf.push_str("\n==========================================================================================\n");
+  buf.push_str(&format!(" Updated: {} | Interval: 200ms | Hosts: {}/{} visible\n", Local::now().format("%H:%M:%S"), hosts.len(), hosts.len()));
 
-  refresh();
-  TuiAction::Continue
+  state.runner.call_on_name("main_view", |view: &mut TextView| {
+    view.set_content(buf);
+  });
+
+  state.runner.refresh();
+  current_action
 }

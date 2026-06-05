@@ -1,5 +1,6 @@
 fping-rust 0.2.0 (new)
 ======================
+- Migrate ncurses TUI from crates ncurses to cursive (#22, @gsnw-sebast)
 - Add ncurses TUI quit/reset hotkeys (#21, @gsnw-sebast)
   - fix: Keep ncurses TUI open after finishing pings
   - fix: Move ncurses TUI status info to footer and fix refresh rate
