@@ -4,7 +4,7 @@ version = "0.2.0"
 description = "High-performance ping tool"
 license = "GPL-3.0-or-later"
 categories = ["command-line-utilities"]
-homepage = "https://github.com/gsnw/fping-rust"
+homepage = "https://www.gsnw.de/tools/fping-rust.php"
 repository = "https://github.com/gsnw/fping-rust"
 edition = "2024"
 
