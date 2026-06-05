@@ -1,4 +1,4 @@
-fping-rust 0.2.0 (new)
+fping-rust 0.2.0 (2026-06-05)
 ======================
 - ci: Optimizing oiface testing (#23, @gsnw-sebast)
 - Migrate ncurses TUI from crates ncurses to cursive (#22, @gsnw-sebast)

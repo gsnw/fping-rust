@@ -5,7 +5,8 @@
 [![Downloads](https://img.shields.io/github/downloads/gsnw/fping-rust/total.svg)](https://github.com/gsnw/fping-rust/releases)
 [![Crates.io](https://img.shields.io/crates/v/fping-rust.svg)](https://crates.io/crates/fping-rust)
 
-fping-rust is an attempt to translate the fping program into Rust.
+fping-rust is an attempt to port the `fping` program to Rust.
+It includes some features not found in the original fping, while others are missing.
 
 This version is licensed under the GPL
 
@@ -18,9 +19,10 @@ established itself since then as a standard tool.
 
 ## Installation
 
+Installation is quite simple and can be done directly from crates.io
+
 ```
-cargo build
-cargo install --path=/usr/local
+cargo install fping-rust
 ```
 
 Make fping either setuid, or, if under Linux
@@ -33,6 +35,38 @@ If you can't run fping as root or can't use the cap_net_raw capability, you can 
 
 ```
 echo "net.ipv4.ping_group_range = 0 2147483647" >> /etc/sysctl.d/local.conf
+```
+
+## Development
+
+Build the project with Cargo in debug mode
+
+```
+make build
+```
+
+Run the tests using Cargo
+
+```
+make test
+```
+
+Build a release version of the project using Cargo
+
+```
+make build-release
+```
+
+Alternatively: Builds and packages the binaries
+
+```
+make package
+```
+
+Cleans up build artifacts
+
+```
+make clean
 ```
 
 ## Usage
