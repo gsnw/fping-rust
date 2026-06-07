@@ -60,14 +60,14 @@ pub fn update(state: &mut TuiState, hosts: &[HostEntry], start: Instant) -> TuiA
   let elapsed = start.elapsed().as_secs_f64();
   let mut buf = String::new();
 
-  buf.push_str("==========================================================================================\n");
+  buf.push_str("=======================================================================================================\n");
   buf.push_str(&format!(" fping-rs TUI | Hosts: {} | Elapsed: {:.1}s\n", hosts.len(), elapsed));
   buf.push_str(" Controls: [q] / [ESC] Quit TUI  |  [r] Reset Statistics\n");
-  buf.push_str("==========================================================================================\n\n");
+  buf.push_str("=======================================================================================================\n\n");
 
-  buf.push_str(&format!("{:<20} | {:>6} | {:>6} | {:>5}% | {:>8} | {:>8} | {:>8} | {:>8}\n",
-    "Host", "Sent", "Recv", "Loss", "Min", "Avg", "Max", "Last"));
-  buf.push_str(&format!("{}\n", "-".repeat(90)));
+  buf.push_str(&format!("{:<20} | {:>6} | {:>6} | {:>5}% | {:>8} | {:>8} | {:>8} | {:>8} | {:<10}\n",
+    "Host", "Sent", "Recv", "Loss", "Min", "Avg", "Max", "Last", "Trend"));
+  buf.push_str(&format!("{}\n", "-".repeat(103)));
 
   for h in hosts {
     let loss = h.loss_pct();
@@ -85,11 +85,27 @@ pub fn update(state: &mut TuiState, hosts: &[HostEntry], start: Instant) -> TuiA
       display.push_str("...");
     }
 
-    buf.push_str(&format!("{:<20} | {:>6} | {:>6} | {:>5}% | {:>8} | {:>8} | {:>8} | {:>8}\n",
-      display, h.num_sent, h.num_recv, loss, min_s, avg_s, max_s, last_s));
+    let trend_chars = [' ', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
+    let mut trend = String::new();
+    let max_ms = h.max_reply.map(|d| d.as_secs_f64()).unwrap_or(0.001);
+    let recent = h.resp_times.iter().skip(h.resp_times.len().saturating_sub(10));
+
+    for r in recent {
+      if let Some(d) = r {
+        let ms = d.as_secs_f64();
+        let mut idx = ((ms / max_ms) * (trend_chars.len() as f64 - 1.0)).round() as usize;
+        if idx >= trend_chars.len() { idx = trend_chars.len() - 1; }
+        trend.push(trend_chars[idx]);
+      } else {
+        trend.push('x');
+      }
+    }
+
+    buf.push_str(&format!("{:<20} | {:>6} | {:>6} | {:>5}% | {:>8} | {:>8} | {:>8} | {:>8} | {:<10}\n",
+      display, h.num_sent, h.num_recv, loss, min_s, avg_s, max_s, last_s, trend));
   }
 
-  buf.push_str("\n==========================================================================================\n");
+  buf.push_str("\n=======================================================================================================\n");
   buf.push_str(&format!(" Updated: {} | Interval: 200ms | Hosts: {}/{} visible\n", Local::now().format("%H:%M:%S"), hosts.len(), hosts.len()));
 
   state.runner.call_on_name("main_view", |view: &mut TextView| {

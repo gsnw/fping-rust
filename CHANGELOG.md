@@ -1,3 +1,7 @@
+fping-rust 0.3.0 (new)
+======================
+- Add visual trend sparkline to output (#24, @gsnw-sebast)
+
 fping-rust 0.2.0 (2026-06-05)
 ======================
 - ci: Optimizing oiface testing (#23, @gsnw-sebast)
