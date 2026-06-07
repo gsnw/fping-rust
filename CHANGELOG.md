@@ -1,5 +1,6 @@
 fping-rust 0.3.0 (new)
 ======================
+- ci: Add a Dockerfile and a GitHub Action for building (#25, @gsnw-sebast)
 - Add visual trend sparkline to output (#24, @gsnw-sebast)
 
 fping-rust 0.2.0 (2026-06-05)
