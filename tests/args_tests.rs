@@ -28,6 +28,8 @@ fn defaults_are_correct() {
   assert!(!a.json);
   assert!(!a.ipv4);
   assert!(!a.ipv6);
+  assert!(!a.tcp);
+  assert_eq!(a.port, 80);
   assert!(!a.addr);
   assert!(!a.timestamp);
 }
@@ -157,6 +159,29 @@ fn option_retry() {
 fn option_size() {
   let a = parse(&["fping", "-b", "128", "1.2.3.4"]);
   assert_eq!(a.size, 128);
+}
+
+#[test]
+fn flag_tcp() {
+  let a = parse(&["fping", "-T", "1.2.3.4"]);
+  assert!(a.tcp);
+
+  let a_long = parse(&["fping", "--tcp", "1.2.3.4"]);
+  assert!(a_long.tcp);
+}
+
+#[test]
+fn option_port() {
+  let a = parse(&["fping", "-T", "--port", "443", "1.2.3.4"]);
+  assert!(a.tcp);
+  assert_eq!(a.port, 443);
+}
+
+#[test]
+fn port_without_tcp_fails() {
+  let res = Args::try_parse_from(&["fping", "--port", "8080", "1.2.3.4"]);
+  assert!(res.is_err());
+  assert_eq!(res.unwrap_err().kind(), clap::error::ErrorKind::MissingRequiredArgument);
 }
 
 #[test]

@@ -210,14 +210,16 @@ pub struct GlobalStatsSummary {
   pub avg_rtt: Option<Duration>,
   pub max_rtt: Option<Duration>,
   pub elapsed: Duration,
+  pub is_tcp: bool,
 }
 
 pub fn print_global_stats(s: &GlobalStatsSummary, json: bool) {
   if json {
+    let proto = if s.is_tcp { "tcp" } else { "icmp" };
     println!(
-      "{{\"stats\": {{\"targets\": {}, \"alive\": {}, \"unreachable\": {}, \
-        \"icmpEchosSent\": {}, \"icmpEchoRepliesReceived\": {}, \"elapsed\": {:.3}}}}}",
-      s.num_hosts, s.num_alive, s.num_unreachable,
+      "{{\"stats\": {{\"protocol\": \"{}\", \"targets\": {}, \"alive\": {}, \"unreachable\": {}, \
+        \"sent\": {}, \"received\": {}, \"elapsed\": {:.3}}}}}",
+      proto, s.num_hosts, s.num_alive, s.num_unreachable,
       s.total_sent, s.total_recv,
       s.elapsed.as_secs_f64()
     );
@@ -229,8 +231,13 @@ pub fn print_global_stats(s: &GlobalStatsSummary, json: bool) {
   eprintln!(" {:>7} alive",         s.num_alive);
   eprintln!(" {:>7} unreachable",   s.num_unreachable);
   eprintln!();
-  eprintln!(" {:>7} ICMP Echos sent",            s.total_sent);
-  eprintln!(" {:>7} ICMP Echo Replies received", s.total_recv);
+  if s.is_tcp {
+    eprintln!(" {:>7} TCP connections initiated",            s.total_sent);
+    eprintln!(" {:>7} TCP connections established", s.total_recv);
+  } else {
+    eprintln!(" {:>7} ICMP Echos sent",            s.total_sent);
+    eprintln!(" {:>7} ICMP Echo Replies received", s.total_recv);
+  }
   eprintln!();
 
   if let (Some(mn), Some(av), Some(mx)) = (s.min_rtt, s.avg_rtt, s.max_rtt) {

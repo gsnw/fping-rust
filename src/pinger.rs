@@ -1,7 +1,9 @@
 use std::collections::HashMap;
-use std::net::IpAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::os::unix::io::{OwnedFd, AsRawFd, FromRawFd};
 use std::time::{Duration, Instant};
+use std::net::TcpStream;
+use std::io::ErrorKind;
 
 use crate::args::Args;
 use crate::output::{
@@ -11,6 +13,12 @@ use crate::output::{
 };
 use crate::socket::{bind_source_v4, bind_source_v6, build_icmp_packet, open_raw_socket, recv_ping, send_ping_v4, send_ping_v6, set_outgoing_iface_v4, set_outgoing_iface_v6, SocketKind};
 use crate::types::{HostEntry, PendingPing};
+
+struct PendingTcp {
+  host_index: usize,
+  ping_index: u32,
+  stream: TcpStream,
+}
 
 pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
   let hosts_backup = hosts_in.clone();
@@ -32,7 +40,7 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
   let has_v4 = hosts.iter().any(|h| !h.is_ipv6);
   let has_v6 = hosts.iter().any(|h| h.is_ipv6);
 
-  let (owned_fd4, kind4, dgram_id4): (Option<OwnedFd>, SocketKind, Option<u16>) = if has_v4 {
+  let (owned_fd4, kind4, dgram_id4): (Option<OwnedFd>, SocketKind, Option<u16>) = if has_v4 && !args.tcp {
     let (fd, kind, kid) = open_raw_socket(false).unwrap_or_else(|e| {
       eprintln!("fping: {}", e);
       std::process::exit(3);
@@ -43,7 +51,7 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
     (None, SocketKind::Raw, None)
   };
 
-  let (owned_fd6, kind6, dgram_id6): (Option<OwnedFd>, SocketKind, Option<u16>) = if has_v6 {
+  let (owned_fd6, kind6, dgram_id6): (Option<OwnedFd>, SocketKind, Option<u16>) = if has_v6 && !args.tcp {
     let (fd, kind, kid) = open_raw_socket(true).unwrap_or_else(|e| {
       eprintln!("fping: {}", e);
       std::process::exit(3);
@@ -118,6 +126,7 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
 
   // seq -> PendingPing
   let mut seqmap: HashMap<u16, PendingPing> = HashMap::new();
+  let mut tcp_map: HashMap<u16, PendingTcp> = HashMap::new();
   let mut seq_counter: u32 = 0;
   let mut recv_buf = vec![0u8; 4096];
 
@@ -152,6 +161,7 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
               h
             })
             .collect();
+          tcp_map.clear();
           for (i, h) in hosts.iter_mut().enumerate() {
             h.next_send = Instant::now() + interval * i as u32;
             h.retries_left = args.retry;
@@ -162,7 +172,7 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
       last_tui_update = now;
     }
 
-    if !args.tui && hosts.iter().all(|h| h.done) && seqmap.is_empty() {
+    if !args.tui && hosts.iter().all(|h| h.done) && seqmap.is_empty() && tcp_map.is_empty() {
       break;
     }
 
@@ -175,7 +185,7 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
       let seq: u16 = loop {
         let candidate = (seq_counter & 0xFFFF) as u16;
         seq_counter = seq_counter.wrapping_add(1);
-        if !seqmap.contains_key(&candidate) {
+        if !seqmap.contains_key(&candidate) && !tcp_map.contains_key(&candidate) {
           break candidate;
         }
         if (seq_counter & 0xFFFF) as u16 == (seq_counter.wrapping_sub(65536) & 0xFFFF) as u16 {
@@ -183,17 +193,40 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
         }
       };
 
-      let is_ipv6  = hosts[idx].is_ipv6;
-      let kind = if is_ipv6 { kind6 } else { kind4 };
-      let pkt_id = if is_ipv6 { my_id6 } else { my_id4 };
-      let pkt = build_icmp_packet(pkt_id, seq, args.size, is_ipv6, kind);
-
-      let sent = match hosts[idx].addr {
-        IpAddr::V4(ref a) => fd4.map(|fd| send_ping_v4(fd, a, &pkt, oiface_idx4, src_v4)).unwrap_or(false),
-        IpAddr::V6(ref a) => fd6.map(|fd| send_ping_v6(fd, a, &pkt, oiface_idx6, src_v6)).unwrap_or(false),
+      let sent = if args.tcp {
+        let sock_addr = SocketAddr::new(hosts[idx].addr, args.port);
+        match TcpStream::connect_timeout(&sock_addr, Duration::from_millis(1)) {
+          Ok(stream) => {
+            let _ = stream.set_nonblocking(true);
+            tcp_map.insert(seq, PendingTcp { host_index: idx, ping_index: ping_idx, stream });
+            true
+          }
+          Err(ref e) if e.kind() == ErrorKind::TimedOut || e.kind() == ErrorKind::WouldBlock => {
+            if let Ok(stream) = TcpStream::connect_timeout(&sock_addr, Duration::from_nanos(1)) { let _ = stream.set_nonblocking(true); }
+            false
+          }
+          Err(_) => false,
+        }
+      } else {
+        let is_ipv6  = hosts[idx].is_ipv6;
+        let kind = if is_ipv6 { kind6 } else { kind4 };
+        let pkt_id = if is_ipv6 { my_id6 } else { my_id4 };
+        let pkt = build_icmp_packet(pkt_id, seq, args.size, is_ipv6, kind);
+        
+        match hosts[idx].addr {
+          IpAddr::V4(ref a) => fd4.map(|fd| send_ping_v4(fd, a, &pkt, oiface_idx4, src_v4)).unwrap_or(false),
+          IpAddr::V6(ref a) => fd6.map(|fd| send_ping_v6(fd, a, &pkt, oiface_idx6, src_v6)).unwrap_or(false),
+        }
       };
 
-      if sent && !seqmap.contains_key(&seq) {
+      if args.tcp && tcp_map.contains_key(&seq) {
+        let sent_at = Instant::now();
+        hosts[idx].num_sent  += 1;
+        hosts[idx].last_send  = Some(sent_at);
+        hosts[idx].next_send = if count.is_some() || loop_mode { sent_at + period } else { sent_at + timeout };
+        hosts[idx].current_ping_index += 1;
+        if count.map(|c| hosts[idx].current_ping_index >= c).unwrap_or(false) { hosts[idx].next_send = now + Duration::from_secs(86400); }
+      } else if sent && !seqmap.contains_key(&seq) {
         let sent_at = Instant::now();
         seqmap.insert(seq, PendingPing { host_index: idx, ping_index: ping_idx, sent_at });
         hosts[idx].num_sent  += 1;
@@ -219,48 +252,88 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
       }
     }
 
-    for (fd_opt, is_v6, kind, expected_id) in &[(fd4, false, kind4, my_id4), (fd6, true,  kind6, my_id6),] {
-      let fd = match fd_opt { Some(f) => *f, None => continue };
-      loop {
-        let received = match recv_ping(fd, &mut recv_buf, *is_v6, *kind, Some(*expected_id)) {
-          Some(r) => r,
-          None => break,
-        };
-
-        if let Some(pending) = seqmap.get(&received.seq) {
-          if Instant::now().duration_since(pending.sent_at) > timeout {
-            seqmap.remove(&received.seq);
-            continue;
+    if args.tcp {
+      let mut resolved_tcp = Vec::new();
+      for (&seq, pending) in tcp_map.iter() {
+        match pending.stream.take_error() {
+          Ok(None) => {
+            if let Err(e) = pending.stream.peek(&mut [0u8; 1]) {
+              if e.kind() == ErrorKind::WouldBlock {
+                resolved_tcp.push(seq);
+              } else if e.kind() != ErrorKind::ConnectionRefused {
+                // Other errors mean it failed
+              }
+            } else {
+              resolved_tcp.push(seq);
+            }
           }
+          _ => {}
         }
+      }
 
-        if let Some(pending) = seqmap.remove(&received.seq) {
-          let rtt = Instant::now().duration_since(pending.sent_at);
-          let hi  = pending.host_index;
+      for seq in resolved_tcp {
+        if let Some(pending) = tcp_map.remove(&seq) {
+          let hi = pending.host_index;
+          let rtt = pending.stream.local_addr().map(|_| Instant::now().duration_since(hosts[hi].last_send.unwrap())).unwrap_or(Duration::from_millis(1));
           let first_reply = hosts[hi].num_recv == 0;
           hosts[hi].record_reply(rtt, pending.ping_index);
 
           let is_default_mode = count.is_none() && !loop_mode;
-          if is_default_mode && first_reply {
-            hosts[hi].done = true;
-          }
+          if is_default_mode && first_reply { hosts[hi].done = true; }
 
           if !args.quiet && !args.unreach && !args.tui {
             if is_default_mode {
-              if first_reply {
-                print_alive(&hosts[hi], args.timestamp, args.json);
-              }
+              if first_reply { print_alive(&hosts[hi], args.timestamp, args.json); }
             } else {
-              print_recv(RecvLineOpts {
-                host: &hosts[hi],
-                ping_index: pending.ping_index,
-                rtt,
-                raw_len: received.raw_len,
-                max_len,
-                timestamp: args.timestamp,
-                json: args.json,
-                verbose_count,
-              });
+              print_recv(RecvLineOpts { host: &hosts[hi], ping_index: pending.ping_index, rtt, raw_len: 0, max_len, timestamp: args.timestamp, json: args.json, verbose_count });
+            }
+          }
+        }
+      }
+    } else {
+      for (fd_opt, is_v6, kind, expected_id) in &[(fd4, false, kind4, my_id4), (fd6, true,  kind6, my_id6),] {
+        let fd = match fd_opt { Some(f) => *f, None => continue };
+        loop {
+          let received = match recv_ping(fd, &mut recv_buf, *is_v6, *kind, Some(*expected_id)) {
+            Some(r) => r,
+            None => break,
+          };
+
+          if let Some(pending) = seqmap.get(&received.seq) {
+            if Instant::now().duration_since(pending.sent_at) > timeout {
+              seqmap.remove(&received.seq);
+              continue;
+            }
+          }
+
+          if let Some(pending) = seqmap.remove(&received.seq) {
+            let rtt = Instant::now().duration_since(pending.sent_at);
+            let hi  = pending.host_index;
+            let first_reply = hosts[hi].num_recv == 0;
+            hosts[hi].record_reply(rtt, pending.ping_index);
+
+            let is_default_mode = count.is_none() && !loop_mode;
+            if is_default_mode && first_reply {
+              hosts[hi].done = true;
+            }
+
+            if !args.quiet && !args.unreach && !args.tui {
+              if is_default_mode {
+                if first_reply {
+                  print_alive(&hosts[hi], args.timestamp, args.json);
+                }
+              } else {
+                print_recv(RecvLineOpts {
+                  host: &hosts[hi],
+                  ping_index: pending.ping_index,
+                  rtt,
+                  raw_len: received.raw_len,
+                  max_len,
+                  timestamp: args.timestamp,
+                  json: args.json,
+                  verbose_count,
+                });
+              }
             }
           }
         }
@@ -273,6 +346,21 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
       .filter(|(_, p)| now2.duration_since(p.sent_at) > timeout)
       .map(|(&seq, _)| seq)
       .collect();
+
+    let timed_out_tcp: Vec<u16> = tcp_map
+      .iter()
+      .filter(|(_, p)| hosts[p.host_index].last_send.map(|s| now2.duration_since(s) > timeout).unwrap_or(false))
+      .map(|(&seq, _)| seq)
+      .collect();
+
+    for seq in timed_out_tcp {
+      if let Some(pending) = tcp_map.remove(&seq) {
+        let is_default_mode = count.is_none() && !loop_mode;
+        if !is_default_mode && !args.quiet && !args.alive && !args.tui {
+          print_timeout(TimeoutLineOpts { host: &hosts[pending.host_index], ping_index: pending.ping_index, max_len, timestamp: args.timestamp, json: args.json });
+        }
+      }
+    }
 
     for seq in timed_out {
       if let Some(pending) = seqmap.remove(&seq) {
@@ -352,15 +440,16 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
     let g_count = all_rtts.len();
 
     print_global_stats(&GlobalStatsSummary {
-      num_hosts:      hosts.len(),
-      num_alive:      hosts.iter().filter(|h| h.num_recv > 0).count(),
+      num_hosts: hosts.len(),
+      num_alive: hosts.iter().filter(|h| h.num_recv > 0).count(),
       num_unreachable: hosts.iter().filter(|h| h.num_recv == 0).count(),
-      total_sent:     hosts.iter().map(|h| h.num_sent).sum(),
-      total_recv:     hosts.iter().map(|h| h.num_recv).sum(),
-      min_rtt:        all_rtts.iter().min().copied(),
-      avg_rtt:        (g_count > 0).then(|| g_sum / g_count as u32),
-      max_rtt:        all_rtts.iter().max().copied(),
-      elapsed:        start.elapsed(),
+      total_sent: hosts.iter().map(|h| h.num_sent).sum(),
+      total_recv: hosts.iter().map(|h| h.num_recv).sum(),
+      min_rtt: all_rtts.iter().min().copied(),
+      avg_rtt: (g_count > 0).then(|| g_sum / g_count as u32),
+      max_rtt: all_rtts.iter().max().copied(),
+      elapsed: start.elapsed(),
+      is_tcp: args.tcp,
     }, args.json);
   }
 
