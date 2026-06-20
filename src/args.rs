@@ -103,6 +103,14 @@ pub struct Args {
   #[arg(short = 'S', long = "source")]
   pub source: Option<String>,
 
+  /// Use TCP ping instead of ICMP
+  #[arg(short = 'T', long)]
+  pub tcp: bool,
+
+  /// Port for TCP ping (default: 80)
+  #[arg(long, value_name = "PORT", default_value = "80", requires = "tcp")]
+  pub port: u16,
+
   /// Bind outgoing packets to this network interface (e.g. eth0)
   #[arg(long = "oiface", value_name = "IFACE")]
   pub oiface: Option<String>,
