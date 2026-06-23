@@ -87,6 +87,10 @@ pub struct Args {
   #[arg(short = 'J', long)]
   pub json: bool,
 
+  /// Netdata plugin output format
+  #[arg(short = 'N', long)]
+  pub netdata: bool,
+
   /// Use IPv4 only
   #[arg(short = '4', long)]
   pub ipv4: bool,

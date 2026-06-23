@@ -78,6 +78,14 @@ impl HostEntry {
       ((self.num_sent - self.num_recv) * 100) / self.num_sent
     }
   }
+
+  pub fn reset_interval_stats(&mut self) {
+    self.num_sent = 0;
+    self.num_recv = 0;
+    self.max_reply = None;
+    self.min_reply = None;
+    self.total_time = Duration::ZERO;
+  }
 }
 
 pub struct PendingPing {

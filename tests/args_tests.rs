@@ -33,6 +33,7 @@ fn defaults_are_correct() {
   assert!(!a.addr);
   assert!(!a.timestamp);
   assert!(!a.dontfrag);
+  assert!(!a.netdata);
 }
 
 #[test]
@@ -130,6 +131,18 @@ fn flag_addr() {
 fn flag_timestamp() {
   let a = parse(&["fping", "-D", "1.2.3.4"]);
   assert!(a.timestamp);
+}
+
+#[test]
+fn flag_netdata_short() {
+  let a = parse(&["fping", "-N", "1.2.3.4"]);
+  assert!(a.netdata);
+}
+
+#[test]
+fn flag_netdata_long() {
+  let a = parse(&["fping", "--netdata", "1.2.3.4"]);
+  assert!(a.netdata);
 }
 
 #[test]

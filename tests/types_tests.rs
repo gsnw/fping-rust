@@ -112,3 +112,19 @@ fn loss_pct_0_all_received() {
   h.record_reply(Duration::from_millis(10), 2);
   assert_eq!(h.loss_pct(), 0);
 }
+
+#[test]
+fn reset_interval_stats_clears_metrics() {
+  let mut h = make_host(3);
+  h.num_sent = 5;
+  h.record_reply(Duration::from_millis(15), 0);
+  h.record_reply(Duration::from_millis(35), 1);
+
+  h.reset_interval_stats();
+
+  assert_eq!(h.num_sent, 0);
+  assert_eq!(h.num_recv, 0);
+  assert_eq!(h.total_time, Duration::ZERO);
+  assert!(h.min_reply.is_none());
+  assert!(h.max_reply.is_none());
+}

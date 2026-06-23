@@ -158,6 +158,7 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
   let interval = Duration::from_millis(args.interval);
   let period   = Duration::from_millis(args.period);
   let timeout  = Duration::from_millis(args.timeout);
+  let report_interval_secs = period.as_secs_f64();
 
   for (i, h) in hosts.iter_mut().enumerate() {
     h.next_send    = Instant::now() + interval * i as u32;
@@ -179,6 +180,8 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
   } else {
     None
   };
+
+  let mut sent_charts = false;
 
   // Start main_loop
   loop {
@@ -439,6 +442,10 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
           h.done = true;
         }
       }
+    }
+
+    if args.netdata && !args.tui {
+      crate::output::print_netdata(&mut hosts, report_interval_secs, &mut sent_charts);
     }
 
     std::thread::sleep(Duration::from_millis(1));

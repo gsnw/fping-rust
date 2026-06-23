@@ -78,3 +78,19 @@ fn max_host_len_uses_display_field() {
   h.display = "1.2.3.4".to_string();
   assert_eq!(max_host_len(&[h]), "1.2.3.4".len());
 }
+
+#[test]
+fn test_print_netdata_mutates_sent_charts() {
+  let addr: IpAddr = "127.0.0.1".parse().unwrap();
+  let mut hosts = vec![HostEntry::new("localhost".to_string(), addr, false, 0)];
+  hosts[0].display = "localhost".to_string();
+
+  let mut sent_charts = false;
+
+  fping::output::print_netdata(&mut hosts, 1.0, &mut sent_charts);
+  assert!(sent_charts);
+
+  let mut sent_charts_second = true;
+  fping::output::print_netdata(&mut hosts, 1.0, &mut sent_charts_second);
+  assert!(sent_charts_second);
+}

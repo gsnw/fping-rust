@@ -268,3 +268,52 @@ pub fn print_global_stats(s: &GlobalStatsSummary, json: bool) {
   eprintln!(" {:>12.3} sec (elapsed real time)", s.elapsed.as_secs_f64());
   eprintln!();
 }
+
+pub fn print_netdata(hosts: &mut [HostEntry], report_interval_secs: f64, sent_charts: &mut bool) {
+  for h in hosts {
+    let safe_name = h.display.replace(".", "_");
+
+    if !*sent_charts {
+      println!("CHART fping.{}_packets '' 'FPing Packets' packets '{}' fping.packets line 110020 {:.0}", safe_name, h.addr, report_interval_secs);
+      println!("DIMENSION xmt sent absolute 1 1");
+      println!("DIMENSION rcv received absolute 1 1");
+    }
+
+    println!("BEGIN fping.{}_packets", safe_name);
+    println!("SET xmt = {}", h.num_sent);
+    println!("SET rcv = {}", h.num_recv);
+    println!("END");
+
+    if !*sent_charts {
+      println!("CHART fping.{}_quality '' 'FPing Quality' percentage '{}' fping.quality area 110010 {:.0}", safe_name, h.addr, report_interval_secs);
+      println!("DIMENSION returned '' absolute 1 1");
+    }
+
+    let quality = if h.num_sent > 0 { (h.num_recv * 100) / h.num_sent } else { 0 };
+    println!("BEGIN fping.{}_quality", safe_name);
+    println!("SET returned = {}", quality);
+    println!("END");
+
+    if !*sent_charts {
+      println!("CHART fping.{}_latency '' 'FPing Latency' ms '{}' fping.latency area 110000 {:.0}", safe_name, h.addr, report_interval_secs);
+      println!("DIMENSION min minimum absolute 1 1000000");
+      println!("DIMENSION max maximum absolute 1 1000000");
+      println!("DIMENSION avg average absolute 1 1000000");
+    }
+
+    println!("BEGIN fping.{}_latency", safe_name);
+    if h.num_recv > 0 {
+      let min_us = h.min_reply.map(|d| d.as_micros()).unwrap_or(0);
+      let max_us = h.max_reply.map(|d| d.as_micros()).unwrap_or(0);
+      let avg_us = h.avg_reply().map(|d| d.as_micros()).unwrap_or(0);
+
+      println!("SET min = {}", min_us);
+      println!("SET avg = {}", avg_us);
+      println!("SET max = {}", max_us);
+    }
+
+    println!("END");
+    h.reset_interval_stats();
+  }
+  *sent_charts = true;
+}
