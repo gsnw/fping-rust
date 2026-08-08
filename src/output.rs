@@ -1,4 +1,5 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::net::IpAddr;
 
 use crate::types::HostEntry;
 
@@ -29,12 +30,26 @@ pub fn max_host_len(hosts: &[HostEntry]) -> usize {
   hosts.iter().map(|h| h.display.len()).max().unwrap_or(0)
 }
 
-pub fn print_alive(host: &HostEntry, timestamp: bool, json: bool) {
+pub fn print_alive(host: &HostEntry, timestamp: bool, json: bool, print_reply_dst: bool, reply_dst: Option<IpAddr>) {
   let prefix = if timestamp { format!("{} ", now_ts()) } else { String::new() };
-  if json {
-    println!("{{\"alive\": {{\"host\": \"{}\"}}}}", host.display);
+  let reply_str = if print_reply_dst {
+    match reply_dst {
+      Some(ip) => format!(" (Reply-DST: {})", ip),
+      None => " (Reply-DST: unknown)".to_string(),
+    }
   } else {
-    println!("{}{} is alive", prefix, host.display);
+    String::new()
+  };
+
+  if json {
+    let reply_json = if print_reply_dst {
+      reply_dst.map(|d| format!(", \"replyDst\": \"{}\"", d)).unwrap_or_else(|| ", \"replyDst\": \"unknown\"".to_string())
+    } else {
+      String::new()
+    };
+    println!("{{\"alive\": {{\"host\": \"{}\"{}}}}}", host.display, reply_json);
+  } else {
+    println!("{}{} is alive{}", prefix, host.display, reply_str);
   }
 }
 
@@ -56,6 +71,7 @@ pub struct RecvLineOpts<'a> {
   pub timestamp: bool,
   pub json: bool,
   pub verbose_count: bool,
+  pub reply_dst: Option<IpAddr>,
 }
 
 pub fn print_recv(opts: RecvLineOpts) {
@@ -69,28 +85,31 @@ pub fn print_recv(opts: RecvLineOpts) {
   let rtt_str = sprint_tm(opts.rtt);
 
   if opts.json {
+    let reply_str = opts.reply_dst.map(|d| format!(", \"replyDst\": \"{}\"", d)).unwrap_or_default();
     println!(
-      "{{\"resp\": {{\"host\": \"{}\", \"seq\": {}, \"rtt\": {}}}}}",
-      h.display, opts.ping_index, rtt_str
+      "{{\"resp\": {{\"host\": \"{}\", \"seq\": {}, \"rtt\": {}{}}}}}",
+      h.display, opts.ping_index, rtt_str, reply_str
     );
     return;
   }
 
   if opts.verbose_count {
+    let reply_str = opts.reply_dst.map(|d| format!(" (Reply-DST: {})", d)).unwrap_or_default();
     println!(
-      "{}{:<width$} : [{}], {} ms",
-      prefix, h.display, opts.ping_index, rtt_str,
+      "{}{:<width$} : [{}], {} ms{}",
+      prefix, h.display, opts.ping_index, rtt_str, reply_str,
       width = opts.max_len
     );
     return;
   }
 
   let avg_str = h.avg_reply().map(sprint_tm).unwrap_or_default();
+  let reply_str = opts.reply_dst.map(|d| format!(" (Reply-DST: {})", d)).unwrap_or_default();
   println!(
-    "{}{:<width$} : [{}], {} bytes, {} ms ({} avg, {}% loss)",
+    "{}{:<width$} : [{}], {} bytes, {} ms ({} avg, {}% loss){}",
     prefix, h.display, opts.ping_index,
     opts.raw_len.saturating_sub(28),
-    rtt_str, avg_str, h.loss_pct(),
+    rtt_str, avg_str, h.loss_pct(), reply_str,
     width = opts.max_len
   );
 }

@@ -274,6 +274,7 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
       for seq in resolved_tcp {
         if let Some(pending) = tcp_map.remove(&seq) {
           let hi = pending.host_index;
+          let reply_dst = if args.print_reply_dst { pending.stream.local_addr().map(|a| a.ip()).ok() } else { None };
           let rtt = pending.stream.local_addr().map(|_| Instant::now().duration_since(hosts[hi].last_send.unwrap())).unwrap_or(Duration::from_millis(1));
           let first_reply = hosts[hi].num_recv == 0;
           hosts[hi].record_reply(rtt, pending.ping_index);
@@ -283,9 +284,9 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
 
           if !args.quiet && !args.unreach && !args.tui {
             if is_default_mode {
-              if first_reply { print_alive(&hosts[hi], args.timestamp, args.json); }
+              if first_reply { print_alive(&hosts[hi], args.timestamp, args.json, args.print_reply_dst, reply_dst); }
             } else {
-              print_recv(RecvLineOpts { host: &hosts[hi], ping_index: pending.ping_index, rtt, raw_len: 0, max_len, timestamp: args.timestamp, json: args.json, verbose_count });
+              print_recv(RecvLineOpts {host: &hosts[hi], ping_index: pending.ping_index, rtt, raw_len: 0, max_len, timestamp: args.timestamp, json: args.json, verbose_count, reply_dst});
             }
           }
         }
@@ -320,7 +321,8 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
             if !args.quiet && !args.unreach && !args.tui {
               if is_default_mode {
                 if first_reply {
-                  print_alive(&hosts[hi], args.timestamp, args.json);
+                  let reply_dst = if args.print_reply_dst { received.reply_dst } else { None };
+                  print_alive(&hosts[hi], args.timestamp, args.json, args.print_reply_dst, reply_dst);
                 }
               } else {
                 print_recv(RecvLineOpts {
@@ -332,6 +334,7 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
                   timestamp: args.timestamp,
                   json: args.json,
                   verbose_count,
+                  reply_dst: if args.print_reply_dst { received.reply_dst } else { None },
                 });
               }
             }
