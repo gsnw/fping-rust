@@ -1,9 +1,9 @@
 use libc::{
-  c_void, recvfrom, sendmsg, sendto, sockaddr, socklen_t,
+  c_void, sendmsg, sendto, sockaddr, socklen_t,
   AF_INET, AF_INET6, IPPROTO_ICMP, IPPROTO_ICMPV6, SOCK_DGRAM, SOCK_RAW,
 };
 use std::io::ErrorKind;
-use std::net::{Ipv4Addr, Ipv6Addr};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::os::unix::io::RawFd;
 use std::ffi::CString;
 
@@ -67,6 +67,7 @@ pub fn open_raw_socket(is_ipv6: bool) -> Result<(RawFd, SocketKind, Option<u16>)
     if let Err(e) = set_nonblocking(fd) {
       eprintln!("Warning: set_nonblocking failed for RAW socket: {}", e);
     }
+    enable_pktinfo(fd, is_ipv6);
     return Ok((fd, SocketKind::Raw, None));
   }
 
@@ -75,6 +76,7 @@ pub fn open_raw_socket(is_ipv6: bool) -> Result<(RawFd, SocketKind, Option<u16>)
     if let Err(e) = set_nonblocking(fd) {
       eprintln!("Warning: set_nonblocking failed for DGRAM socket: {}", e);
     }
+    enable_pktinfo(fd, is_ipv6);
 
     match dgram_bind_and_get_id(fd, is_ipv6) {
       Ok(assigned_id) => return Ok((fd, SocketKind::Dgram, assigned_id)),
@@ -348,16 +350,30 @@ pub fn send_ping_v6(fd: RawFd, addr: &Ipv6Addr, pkt: &[u8], iface_idx: Option<u3
   }
 }
 
+fn enable_pktinfo(fd: RawFd, is_ipv6: bool) {
+  let on: libc::c_int = 1;
+  unsafe {
+    if is_ipv6 {
+      libc::setsockopt(fd, libc::IPPROTO_IPV6, libc::IPV6_RECVPKTINFO, &on as *const _ as *const libc::c_void, std::mem::size_of::<libc::c_int>() as socklen_t);
+    } else {
+      libc::setsockopt(fd, libc::IPPROTO_IP, libc::IP_PKTINFO, &on as *const _ as *const libc::c_void, std::mem::size_of::<libc::c_int>() as socklen_t);
+    }
+  }
+}
+
 pub struct ReceivedPing {
   pub seq: u16,
   pub raw_len: usize,
+  pub reply_dst: Option<IpAddr>,
 }
 
-fn parse_icmp_packet(data: &[u8], is_ipv6: bool, kind: SocketKind, expected_id: Option<u16>) -> Option<u16> {
+fn parse_icmp_packet(data: &[u8], is_ipv6: bool, kind: SocketKind, expected_id: Option<u16>) -> Option<(u16, Option<IpAddr>)> {
+  let mut reply_dst = None;
   let icmp = if !is_ipv6 && kind == SocketKind::Raw {
     if data.len() < IPV4_MIN_HDR_LEN + ICMP_MIN_LEN {
       return None;
     }
+    reply_dst = Some(IpAddr::V4(Ipv4Addr::new(data[16], data[17], data[18], data[19])));
     let ihl = ((data[0] & 0x0F) as usize) * 4;
     if data.len() < ihl + ICMP_MIN_LEN {
       return None;
@@ -389,35 +405,61 @@ fn parse_icmp_packet(data: &[u8], is_ipv6: bool, kind: SocketKind, expected_id: 
     }
   }
 
-  Some(u16::from_be_bytes([icmp[ICMP_SEQ_OFFSET], icmp[ICMP_SEQ_OFFSET + 1]]))
+  Some((u16::from_be_bytes([icmp[ICMP_SEQ_OFFSET], icmp[ICMP_SEQ_OFFSET + 1]]), reply_dst))
 }
 
 pub fn recv_ping(fd: RawFd, buf: &mut [u8], is_ipv6: bool, kind: SocketKind, expected_id: Option<u16>) -> Option<ReceivedPing> {
   let mut src: libc::sockaddr_storage = unsafe { std::mem::zeroed() };
-  let mut src_len = std::mem::size_of::<libc::sockaddr_storage>() as socklen_t;
+  let _src_len = std::mem::size_of::<libc::sockaddr_storage>() as socklen_t;
 
-  let n = unsafe {
-    recvfrom(
-      fd,
-      buf.as_mut_ptr() as *mut c_void,
-      buf.len(),
-      libc::MSG_DONTWAIT,
-      &mut src as *mut _ as *mut sockaddr,
-      &mut src_len,
-    )
+  let mut iov = libc::iovec {
+    iov_base: buf.as_mut_ptr() as *mut c_void,
+    iov_len: buf.len(),
   };
+
+  let mut cmsg_buf = [0u8; 512];
+  let mut msg: libc::msghdr = unsafe { std::mem::zeroed() };
+  msg.msg_name = &mut src as *mut _ as *mut c_void;
+  msg.msg_namelen = std::mem::size_of::<libc::sockaddr_storage>() as socklen_t;
+  msg.msg_iov = &mut iov as *mut _;
+  msg.msg_iovlen = 1;
+  msg.msg_control = cmsg_buf.as_mut_ptr() as *mut c_void;
+  msg.msg_controllen = cmsg_buf.len() as _;
+
+  let n = unsafe { libc::recvmsg(fd, &mut msg, libc::MSG_DONTWAIT) };
 
   if n < 0 {
     let err = std::io::Error::last_os_error();
     if err.kind() != ErrorKind::WouldBlock {
-      eprintln!("recv_ping: recvfrom error: {}", err);
+      eprintln!("recv_ping: recvmsg error: {}", err);
     }
     return None;
   }
 
   let raw_len = n as usize;
   let data = &buf[..raw_len];
-  let seq = parse_icmp_packet(data, is_ipv6, kind, expected_id)?;
 
-  Some(ReceivedPing { seq, raw_len })
+  let mut cmsg_dst: Option<IpAddr> = None;
+  unsafe {
+    let mut cmsg = libc::CMSG_FIRSTHDR(&msg);
+    while !cmsg.is_null() {
+      if (*cmsg).cmsg_level == libc::IPPROTO_IPV6 && (*cmsg).cmsg_type == libc::IPV6_PKTINFO {
+        let pktinfo = libc::CMSG_DATA(cmsg) as *const libc::in6_pktinfo;
+        let addr = Ipv6Addr::from((*pktinfo).ipi6_addr.s6_addr);
+        cmsg_dst = Some(IpAddr::V6(addr));
+        break;
+      } else if (*cmsg).cmsg_level == libc::IPPROTO_IP && (*cmsg).cmsg_type == libc::IP_PKTINFO {
+        let pktinfo = libc::CMSG_DATA(cmsg) as *const libc::in_pktinfo;
+        let addr = Ipv4Addr::from(u32::from_be((*pktinfo).ipi_addr.s_addr));
+        cmsg_dst = Some(IpAddr::V4(addr));
+        break;
+      }
+      cmsg = libc::CMSG_NXTHDR(&msg, cmsg);
+    }
+  }
+
+  let (seq, parsed_dst) = parse_icmp_packet(data, is_ipv6, kind, expected_id)?;
+  let reply_dst = cmsg_dst.or(parsed_dst);
+
+  Some(ReceivedPing { seq, raw_len, reply_dst })
 }

@@ -210,3 +210,9 @@ fn option_file_stdin() {
   let a = parse(&["fping", "-f", "-"]);
   assert_eq!(a.file.as_deref(), Some("-"));
 }
+
+#[test]
+fn flag_print_reply_dst() {
+  let a = parse(&["fping", "--print-reply-dst", "1.2.3.4"]);
+  assert!(a.print_reply_dst);
+}

@@ -115,6 +115,10 @@ pub struct Args {
   #[arg(long = "oiface", value_name = "IFACE")]
   pub oiface: Option<String>,
 
+  /// Displays the destination address of the received reply packet
+  #[arg(long = "print-reply-dst")]
+  pub print_reply_dst: bool,
+
   /// Enable TUI mode (ncurses)
   #[arg(long)]
   pub tui: bool,
