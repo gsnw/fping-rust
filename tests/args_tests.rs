@@ -32,6 +32,7 @@ fn defaults_are_correct() {
   assert_eq!(a.port, 80);
   assert!(!a.addr);
   assert!(!a.timestamp);
+  assert!(!a.dontfrag);
 }
 
 #[test]
@@ -215,4 +216,13 @@ fn option_file_stdin() {
 fn flag_print_reply_dst() {
   let a = parse(&["fping", "--print-reply-dst", "1.2.3.4"]);
   assert!(a.print_reply_dst);
+}
+
+#[test]
+fn flag_dontfrag() {
+  let a = parse(&["fping", "-M", "1.2.3.4"]);
+  assert!(a.dontfrag);
+
+  let a_long = parse(&["fping", "--dontfrag", "1.2.3.4"]);
+  assert!(a_long.dontfrag);
 }

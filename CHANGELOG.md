@@ -1,5 +1,6 @@
 fping-rust 0.3.0 (new)
 ======================
+- Add -M / --dontfrag option for path MTU discovery (#28, @gsnw-sebast)
 - New option --print-reply-dst to show the destination address of the received reply packet (#27, @gsnw-sebast)
 - Add TCP ping support (#26, @gsnw-sebast)
 - ci: Add a Dockerfile and a GitHub Action for building (#25, @gsnw-sebast)
