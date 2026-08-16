@@ -68,18 +68,38 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
   if args.dontfrag {
     if let Some(fd) = fd4 {
       unsafe {
-        let val: libc::c_int = libc::IP_PMTUDISC_DO;
-        if libc::setsockopt(fd, libc::IPPROTO_IP, libc::IP_MTU_DISCOVER, &val as *const _ as *const libc::c_void, std::mem::size_of_val(&val) as libc::socklen_t) < 0 {
-          eprintln!("fping: setsockopt IP_MTU_DISCOVER failed: {}", std::io::Error::last_os_error());
+        #[cfg(any(target_os = "linux", target_os = "android"))]
+        {
+          let val: libc::c_int = libc::IP_PMTUDISC_DO;
+          if libc::setsockopt(fd, libc::IPPROTO_IP, libc::IP_MTU_DISCOVER, &val as *const _ as *const libc::c_void, std::mem::size_of_val(&val) as libc::socklen_t) < 0 {
+            eprintln!("fping: setsockopt IP_MTU_DISCOVER failed: {}", std::io::Error::last_os_error());
+          }
+        }
+        #[cfg(any(target_os = "macos", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd"))]
+        {
+          let val: libc::c_int = 1;
+          if libc::setsockopt(fd, libc::IPPROTO_IP, libc::IP_DONTFRAG, &val as *const _ as *const libc::c_void, std::mem::size_of_val(&val) as libc::socklen_t) < 0 {
+            eprintln!("fping: setsockopt IP_DONTFRAG failed: {}", std::io::Error::last_os_error());
+          }
         }
       }
     }
 
     if let Some(fd) = fd6 {
       unsafe {
-        let val: libc::c_int = libc::IPV6_PMTUDISC_DO;
-        if libc::setsockopt(fd, libc::IPPROTO_IPV6, libc::IPV6_MTU_DISCOVER, &val as *const _ as *const libc::c_void, std::mem::size_of_val(&val) as libc::socklen_t) < 0 {
-          eprintln!("fping: setsockopt IPV6_MTU_DISCOVER failed: {}", std::io::Error::last_os_error());
+        #[cfg(any(target_os = "linux", target_os = "android"))]
+        {
+          let val: libc::c_int = libc::IPV6_PMTUDISC_DO;
+          if libc::setsockopt(fd, libc::IPPROTO_IPV6, libc::IPV6_MTU_DISCOVER, &val as *const _ as *const libc::c_void, std::mem::size_of_val(&val) as libc::socklen_t) < 0 {
+            eprintln!("fping: setsockopt IPV6_MTU_DISCOVER failed: {}", std::io::Error::last_os_error());
+          }
+        }
+        #[cfg(any(target_os = "macos", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd"))]
+        {
+          let val: libc::c_int = 1;
+          if libc::setsockopt(fd, libc::IPPROTO_IPV6, libc::IPV6_DONTFRAG, &val as *const _ as *const libc::c_void, std::mem::size_of_val(&val) as libc::socklen_t) < 0 {
+            eprintln!("fping: setsockopt IPV6_DONTFRAG failed: {}", std::io::Error::last_os_error());
+          }
         }
       }
     }
