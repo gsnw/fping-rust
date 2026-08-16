@@ -47,6 +47,10 @@ pub struct Args {
   #[arg(short = 'b', long = "size", value_name = "BYTES", default_value = "56")]
   pub size: usize,
 
+  /// Set the Don't Fragment bit (PMTU discover)
+  #[arg(short = 'M', long = "dontfrag")]
+  pub dontfrag: bool,
+
   /// Read hosts from file (- = stdin)
   #[arg(short = 'f', long, value_name = "FILE")]
   pub file: Option<String>,

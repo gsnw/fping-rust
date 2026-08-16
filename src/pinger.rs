@@ -65,6 +65,26 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
   let fd4 = owned_fd4.as_ref().map(|o| o.as_raw_fd());
   let fd6 = owned_fd6.as_ref().map(|o| o.as_raw_fd());
 
+  if args.dontfrag {
+    if let Some(fd) = fd4 {
+      unsafe {
+        let val: libc::c_int = libc::IP_PMTUDISC_DO;
+        if libc::setsockopt(fd, libc::IPPROTO_IP, libc::IP_MTU_DISCOVER, &val as *const _ as *const libc::c_void, std::mem::size_of_val(&val) as libc::socklen_t) < 0 {
+          eprintln!("fping: setsockopt IP_MTU_DISCOVER failed: {}", std::io::Error::last_os_error());
+        }
+      }
+    }
+
+    if let Some(fd) = fd6 {
+      unsafe {
+        let val: libc::c_int = libc::IPV6_PMTUDISC_DO;
+        if libc::setsockopt(fd, libc::IPPROTO_IPV6, libc::IPV6_MTU_DISCOVER, &val as *const _ as *const libc::c_void, std::mem::size_of_val(&val) as libc::socklen_t) < 0 {
+          eprintln!("fping: setsockopt IPV6_MTU_DISCOVER failed: {}", std::io::Error::last_os_error());
+        }
+      }
+    }
+  }
+
   if let Some(ref src) = args.source {
     match src.parse::<IpAddr>() {
       Ok(IpAddr::V4(_)) => {
