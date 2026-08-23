@@ -226,3 +226,15 @@ fn flag_dontfrag() {
   let a_long = parse(&["fping", "--dontfrag", "1.2.3.4"]);
   assert!(a_long.dontfrag);
 }
+
+#[test]
+fn flag_frag() {
+  let a = parse(&["fping", "--frag", "1.2.3.4"]);
+  assert!(a.frag);
+}
+
+#[test]
+fn frag_and_dontfrag_conflict() {
+  let res = Args::try_parse_from(&["fping", "--frag", "--dontfrag", "1.2.3.4"]);
+  assert!(res.is_err());
+}
