@@ -90,6 +90,7 @@ Options:
   -B, --backoff <BACKOFF>  Exponential backoff factor (default: 1.5) [default: 1.5]
   -b, --size <BYTES>       Ping data size in bytes (default: 56) [default: 56]
   -M, --dontfrag           Set the Don't Fragment bit (PMTU discover)
+      --frag               Allow fragmentation (explicitly disable Don't Fragment bit)
   -f, --file <FILE>        Read hosts from file (- = stdin)
   -a, --alive              Show only alive hosts
   -u, --unreach            Show only unreachable hosts

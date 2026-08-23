@@ -48,8 +48,12 @@ pub struct Args {
   pub size: usize,
 
   /// Set the Don't Fragment bit (PMTU discover)
-  #[arg(short = 'M', long = "dontfrag")]
+  #[arg(short = 'M', long = "dontfrag", conflicts_with = "frag")]
   pub dontfrag: bool,
+
+  /// Allow fragmentation (explicitly disable Don't Fragment bit)
+  #[arg(long = "frag", conflicts_with = "dontfrag")]
+  pub frag: bool,
 
   /// Read hosts from file (- = stdin)
   #[arg(short = 'f', long, value_name = "FILE")]
