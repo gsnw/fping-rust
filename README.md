@@ -144,6 +144,7 @@ cargo test --test types_tests loss_pct_50
 | ---- | ----------- | ------------- |
 | args_tests.rs | CLI argument parsing, default values | No |
 | dns_tests.rs | Hostname resolution, IP filtering | No* |
+| network_tests.rs | Integration tests executing the real binary, validating output patterns and regex matching | Yes |
 | output_tests.rs | `sprint_tm`, `max_host_len` | No |
 | socket_tests.rs | Packet construction, checksum, ID/Seq encoding | No |
 | types_tests.rs | `HostEntry` logic, statistics | No |

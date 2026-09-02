@@ -1,5 +1,6 @@
 fping-rust 0.3.0 (new)
 ======================
+- Unit-Test live test of fping (#30, @gsnw-sebast)
 - Add --frag option for explicitly allow fragmentation (#29, @gsnw-sebast)
 - Add -M / --dontfrag option for path MTU discovery (#28, @gsnw-sebast)
 - New option --print-reply-dst to show the destination address of the received reply packet (#27, @gsnw-sebast)
