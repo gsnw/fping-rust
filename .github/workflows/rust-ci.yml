@@ -33,7 +33,13 @@ jobs:
         run: make build
 
       - name: Run tests
-        run: make test
+        run: |
+          if [ "${{ runner.os }}" = "Linux" ]; then
+            sudo sysctl -w net.ipv4.ping_group_range="0 2147483647"
+            make test
+          else
+            sudo make test
+          fi
 
   Test-Asymmetric-Routing:
     needs: [ci]
