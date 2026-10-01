@@ -109,7 +109,7 @@ Options:
       --port <PORT>        Port for TCP ping (default: 80) [default: 80]
       --oiface <IFACE>     Bind outgoing packets to this network interface (e.g. eth0)
       --print-reply-dst    Displays the destination address of the received reply packet
-      --tui                Enable interactive TUI mode (ncurses)
+      --tui                Enable TUI mode (ncurses)
   -h, --help               Print help
   -V, --version            Print version
 ```
@@ -130,6 +130,7 @@ cargo test --test dns_tests
 cargo test --test output_tests
 cargo test --test socket_tests
 cargo test --test types_tests
+cargo test --test network_tests
 ```
 
 ### Run specific test by name

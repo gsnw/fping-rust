@@ -1,4 +1,4 @@
-fping-rust 0.3.0 (new)
+fping-rust 0.3.0 (2026-10-01)
 ======================
 - fix: Correct the formatting and filtering of the output for active and unreachable hosts (#31, @gsnw-sebast)
 - Unit-Test live test of fping (#30, @gsnw-sebast)
