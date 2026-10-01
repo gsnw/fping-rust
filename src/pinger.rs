@@ -324,7 +324,7 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
 
           if !args.quiet && !args.unreach && !args.tui {
             if is_default_mode {
-              if first_reply { print_alive(&hosts[hi], args.timestamp, args.json, args.print_reply_dst, reply_dst); }
+              if first_reply && !args.alive { print_alive(&hosts[hi], args.timestamp, args.json, args.print_reply_dst, reply_dst, args.alive); }
             } else {
               print_recv(RecvLineOpts {host: &hosts[hi], ping_index: pending.ping_index, rtt, raw_len: 0, max_len, timestamp: args.timestamp, json: args.json, verbose_count, reply_dst});
             }
@@ -362,7 +362,7 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
               if is_default_mode {
                 if first_reply {
                   let reply_dst = if args.print_reply_dst { received.reply_dst } else { None };
-                  print_alive(&hosts[hi], args.timestamp, args.json, args.print_reply_dst, reply_dst);
+                  if !args.alive { print_alive(&hosts[hi], args.timestamp, args.json, args.print_reply_dst, reply_dst, args.alive); }
                 }
               } else {
                 print_recv(RecvLineOpts {
@@ -457,20 +457,29 @@ pub fn run(args: Args, hosts_in: Vec<(String, IpAddr)>) {
     if !args.quiet {
       for h in &hosts {
         if h.num_recv == 0 {
-          print_unreachable(h, args.timestamp, args.json);
+          print_unreachable(h, args.timestamp, args.json, args.unreach);
         }
       }
     }
   } else if !args.tui {
     for h in &hosts {
-      if args.alive  && h.num_recv > 0 { println!("{}", h.display); }
-      if args.unreach && h.num_recv == 0 { println!("{}", h.display); }
+      if args.alive && count.is_none() && h.num_recv > 0 { println!("{}", h.display); }
+      if args.unreach && count.is_none() && h.num_recv == 0 { println!("{}", h.display); }
     }
   }
 
-  if count.is_some() && !args.alive && !args.unreach && !args.tui {
+  if count.is_some() && !args.tui {
     for h in &hosts {
-      print_per_host_stats(h, max_len, args.json, verbose_count || args.report_all_rtts);
+      let print_this = if args.alive {
+        h.num_recv > 0
+      } else if args.unreach {
+        h.num_recv == 0
+      } else {
+        true
+      };
+      if print_this {
+        print_per_host_stats(h, max_len, args.json, verbose_count || args.report_all_rtts);
+      }
     }
   }
 

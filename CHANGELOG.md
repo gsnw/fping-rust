@@ -1,5 +1,6 @@
 fping-rust 0.3.0 (new)
 ======================
+- fix: Correct the formatting and filtering of the output for active and unreachable hosts (#31, @gsnw-sebast)
 - Unit-Test live test of fping (#30, @gsnw-sebast)
 - Add --frag option for explicitly allow fragmentation (#29, @gsnw-sebast)
 - Add -M / --dontfrag option for path MTU discovery (#28, @gsnw-sebast)
