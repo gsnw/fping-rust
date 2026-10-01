@@ -86,8 +86,8 @@ fn ping_unreachable() {
 
   let stdout = String::from_utf8_lossy(&output.stdout);
   assert!(
-    stdout.contains("1.2.3.4 is unreachable"),
-    "fping output does not include '1.2.3.4 is unreachable':\n{}",
+    stdout.contains("1.2.3.4"),
+    "fping output does not include '1.2.3.4':\n{}",
     stdout
   );
 }

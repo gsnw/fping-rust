@@ -30,7 +30,7 @@ pub fn max_host_len(hosts: &[HostEntry]) -> usize {
   hosts.iter().map(|h| h.display.len()).max().unwrap_or(0)
 }
 
-pub fn print_alive(host: &HostEntry, timestamp: bool, json: bool, print_reply_dst: bool, reply_dst: Option<IpAddr>) {
+pub fn print_alive(host: &HostEntry, timestamp: bool, json: bool, print_reply_dst: bool, reply_dst: Option<IpAddr>, alive_only: bool) {
   let prefix = if timestamp { format!("{} ", now_ts()) } else { String::new() };
   let reply_str = if print_reply_dst {
     match reply_dst {
@@ -49,16 +49,24 @@ pub fn print_alive(host: &HostEntry, timestamp: bool, json: bool, print_reply_ds
     };
     println!("{{\"alive\": {{\"host\": \"{}\"{}}}}}", host.display, reply_json);
   } else {
-    println!("{}{} is alive{}", prefix, host.display, reply_str);
+    if alive_only {
+      println!("{}{}", prefix, host.display);
+    } else {
+      println!("{}{} is alive{}", prefix, host.display, reply_str);
+    }
   }
 }
 
-pub fn print_unreachable(host: &HostEntry, timestamp: bool, json: bool) {
+pub fn print_unreachable(host: &HostEntry, timestamp: bool, json: bool, unreach_only: bool) {
   let prefix = if timestamp { format!("{} ", now_ts()) } else { String::new() };
   if json {
     println!("{{\"unreachable\": {{\"host\": \"{}\"}}}}", host.display);
   } else {
-    println!("{}{} is unreachable", prefix, host.display);
+    if unreach_only {
+      println!("{}{}", prefix, host.display);
+    } else {
+      println!("{}{} is unreachable", prefix, host.display);
+    }
   }
 }
 
